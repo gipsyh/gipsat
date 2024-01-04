@@ -1,5 +1,6 @@
-mod decision;
+mod analyze;
 mod propagate;
+mod search;
 mod utils;
 
 use logic_form::{Clause, Lit, Var};
@@ -10,10 +11,14 @@ use utils::{LitMap, VarMap};
 pub struct Solver {
     value: LitMap<Option<bool>>,
     trail: Vec<Lit>,
+    pos_in_trail: Vec<usize>,
     level: VarMap<usize>,
     propagated: usize,
     watchers: LitMap<Vec<Watcher>>,
     clauses: Vec<Clause>,
+    reason: VarMap<Option<usize>>,
+
+    seen: LitMap<bool>,
 }
 
 impl Solver {
@@ -39,7 +44,10 @@ impl Solver {
     }
 
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
-        SatResult::Sat(Model { solver: self })
+        loop {
+            self.propagate();
+        }
+        todo!()
     }
 }
 
@@ -81,7 +89,7 @@ mod tests {
         solver.add_clause(&Clause::from([lit0, !lit2]));
         solver.add_clause(&Clause::from([lit1, !lit2]));
         solver.add_clause(&Clause::from([!lit0, !lit1, lit2]));
-        solver.assign(lit2);
+        solver.assign(lit2, None);
         solver.propagate();
         dbg!(solver.value);
     }

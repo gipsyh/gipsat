@@ -14,10 +14,9 @@ impl Watcher {
 }
 
 impl Solver {
-    pub fn propagate(&mut self) {
+    pub fn propagate(&mut self) -> Option<usize> {
         while self.propagated < self.trail.len() {
             let p = self.trail[self.propagated];
-            dbg!(p);
             self.propagated += 1;
             let mut new = 0;
             for w in 0..self.watchers[p].len() {
@@ -47,14 +46,20 @@ impl Solver {
                     watchers[new] = new_watcher;
                     new += 1;
                     if let Some(false) = self.value[cref[0]] {
-                        todo!()
+                        for i in w + 1..watchers.len() {
+                            watchers[new] = watchers[i];
+                            new += 1;
+                        }
+                        watchers.truncate(new);
+                        return Some(cid);
                     } else {
                         let assign = cref[0];
-                        self.assign(assign);
+                        self.assign(assign, Some(cid));
                     }
                 }
             }
             self.watchers[p].truncate(new)
         }
+        None
     }
 }
