@@ -3,7 +3,7 @@ use gipsat::{Args, Solver};
 use logic_form::Cnf;
 
 fn main() {
-    let mut args = Args::parse();
+    let args = Args::parse();
     let cnf = Cnf::from_dimacs_file(args.dimacs);
     let mut solver = Solver::new();
     for cls in cnf.iter() {

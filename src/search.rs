@@ -63,10 +63,10 @@ impl Solver {
         loop {
             self.print_value();
             if let Some(conflict) = self.propagate() {
-                if self.level[self.clauses[conflict][0]] == 0 {
+                println!("{:?}", &self.clauses[conflict]);
+                if self.highest_level() == 0 {
                     return SatResult::Unsat(Conflict { solver: self });
                 }
-                println!("{:?}", &self.clauses[conflict]);
                 let (learnt, btl) = self.analyze(conflict);
                 dbg!(btl);
                 self.backtrack(btl);
