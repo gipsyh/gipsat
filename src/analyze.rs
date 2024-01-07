@@ -14,6 +14,7 @@ impl Solver {
             for l in begin..cref.len() {
                 let lit = cref[l];
                 if !self.seen[lit] && self.level[lit] > 0 {
+                    self.seen[lit] = true;
                     if self.level[lit] >= self.highest_level() {
                         path += 1;
                     } else {

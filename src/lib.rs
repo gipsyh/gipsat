@@ -1,11 +1,19 @@
 mod analyze;
+mod command;
 mod propagate;
 mod search;
+#[cfg(test)]
+mod tests;
 mod utils;
+
+pub use command::Args;
 
 use logic_form::{Clause, Lit, Var};
 use propagate::Watcher;
-use std::collections::BinaryHeap;
+use std::{
+    collections::BinaryHeap,
+    fmt::{self, Debug},
+};
 use utils::{LitMap, VarMap};
 
 #[derive(Debug, Default)]
@@ -20,7 +28,7 @@ pub struct Solver {
     reason: VarMap<Option<usize>>,
     vsids: BinaryHeap<Var>,
 
-    seen: LitMap<bool>,
+    seen: VarMap<bool>,
 }
 
 impl Solver {
@@ -37,16 +45,28 @@ impl Solver {
         self.watchers.push(Vec::new());
         let res = Var::new(self.level.len() - 1);
         self.vsids.push(res);
+        self.seen.push(false);
         res
     }
 
-    pub fn add_clause(&mut self, clause: &[Lit]) -> usize {
-        assert!(clause.len() > 1);
-        self.clauses.push(Clause::from(clause));
-        let id = self.clauses.len() - 1;
-        self.watchers[!clause[0]].push(Watcher::new(id, clause[1]));
-        self.watchers[!clause[1]].push(Watcher::new(id, clause[0]));
-        self.clauses.len() - 1
+    #[inline]
+    pub fn num_var(&self) -> usize {
+        self.reason.len()
+    }
+
+    pub fn add_clause(&mut self, clause: &[Lit]) {
+        assert!(self.highest_level() == 0);
+        let clause = Clause::from(clause);
+        for l in clause.iter() {
+            while self.num_var() <= l.var().into() {
+                self.new_var();
+            }
+        }
+        if clause.len() == 1 {
+            self.assign(clause[0], None);
+        } else {
+            self.add_clause_inner(clause);
+        }
     }
 
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
@@ -79,26 +99,11 @@ pub enum SatResult<'a> {
     Unsat(Conflict<'a>),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let mut solver = Solver::new();
-        let lit0: Lit = solver.new_var().into();
-        let lit1: Lit = solver.new_var().into();
-        let lit2: Lit = solver.new_var().into();
-        solver.add_clause(&Clause::from([lit0, !lit2]));
-        solver.add_clause(&Clause::from([lit1, !lit2]));
-        solver.add_clause(&Clause::from([!lit0, !lit1, lit2]));
-        match solver.solve(&[]) {
-            SatResult::Sat(sat) => {
-                dbg!(sat.lit_value(lit0));
-                dbg!(sat.lit_value(lit1));
-                dbg!(sat.lit_value(lit2));
-            }
-            SatResult::Unsat(_) => todo!(),
+impl Debug for SatResult<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Sat(_) => "Sat".fmt(f),
+            Self::Unsat(_) => "Unsat".fmt(f),
         }
     }
 }
