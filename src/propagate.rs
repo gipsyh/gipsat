@@ -1,5 +1,5 @@
 use crate::Solver;
-use logic_form::Lit;
+use logic_form::{Lit, Var};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Watcher {
@@ -22,6 +22,7 @@ impl Solver {
             for w in 0..self.watchers[p].len() {
                 let watchers = &mut self.watchers[p];
                 if let Some(true) = self.value[watchers[w].blocker] {
+                    watchers[new] = watchers[w];
                     new += 1;
                     continue;
                 }
@@ -30,6 +31,7 @@ impl Solver {
                 if cref[0] == !p {
                     cref.swap(0, 1);
                 }
+                assert!(cref[1] == !p);
                 let new_watcher = Watcher::new(cid, cref[0]);
                 if let Some(true) = self.value[cref[0]] {
                     watchers[new] = new_watcher;
@@ -40,7 +42,7 @@ impl Solver {
                     .iter()
                     .position(|l| !matches!(self.value[*l], Some(false)));
                 if let Some(new_lit) = new_lit {
-                    cref.swap(1, new_lit);
+                    cref.swap(1, new_lit + 2);
                     self.watchers[!cref[1]].push(new_watcher);
                 } else {
                     watchers[new] = new_watcher;
@@ -58,7 +60,7 @@ impl Solver {
                     }
                 }
             }
-            self.watchers[p].truncate(new)
+            self.watchers[p].truncate(new);
         }
         None
     }

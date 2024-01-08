@@ -11,7 +11,7 @@ impl Solver {
         self.trail.push(lit);
         self.value[lit] = Some(true);
         self.value[!lit] = Some(false);
-        self.reason[lit.var()] = reason;
+        self.reason[lit] = reason;
         self.level[lit] = self.highest_level();
     }
 
@@ -31,6 +31,9 @@ impl Solver {
     pub fn decide(&mut self) -> bool {
         while let Some(decide) = self.vsids.pop() {
             if self.value[decide.lit()].is_none() {
+                if self.args.verbose {
+                    dbg!(decide);
+                }
                 self.pos_in_trail.push(self.trail.len());
                 self.assign(decide.lit(), None);
                 return true;
@@ -40,6 +43,7 @@ impl Solver {
     }
 
     pub fn backtrack(&mut self, level: usize) {
+        assert!(self.highest_level() > level);
         while self.trail.len() > self.pos_in_trail[level] {
             let bt = self.trail.pop().unwrap();
             self.value[bt] = None;
@@ -61,14 +65,20 @@ impl Solver {
 
     pub fn search(&mut self, assumption: &[Lit]) -> SatResult<'_> {
         loop {
-            self.print_value();
+            if self.args.verbose {
+                self.print_value();
+            }
             if let Some(conflict) = self.propagate() {
-                println!("{:?}", &self.clauses[conflict]);
+                if self.args.verbose {
+                    println!("{:?}", &self.clauses[conflict]);
+                }
                 if self.highest_level() == 0 {
                     return SatResult::Unsat(Conflict { solver: self });
                 }
                 let (learnt, btl) = self.analyze(conflict);
-                dbg!(btl);
+                if self.args.verbose {
+                    dbg!(btl);
+                }
                 self.backtrack(btl);
                 if learnt.len() == 1 {
                     self.assign(learnt[0], None);

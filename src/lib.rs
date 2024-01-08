@@ -5,6 +5,7 @@ mod search;
 #[cfg(test)]
 mod tests;
 mod utils;
+mod verify;
 
 pub use command::Args;
 
@@ -18,6 +19,7 @@ use utils::{LitMap, VarMap};
 
 #[derive(Debug, Default)]
 pub struct Solver {
+    args: Args,
     value: LitMap<Option<bool>>,
     trail: Vec<Lit>,
     pos_in_trail: Vec<usize>,
@@ -32,8 +34,11 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(args: Args) -> Self {
+        Self {
+            args,
+            ..Default::default()
+        }
     }
 
     pub fn new_var(&mut self) -> Var {

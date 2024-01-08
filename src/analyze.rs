@@ -27,7 +27,7 @@ impl Solver {
             }
             self.seen[self.trail[trail_idx]] = false;
             resolve_lit = Some(self.trail[trail_idx]);
-            conflict = self.reason[self.trail[trail_idx].var()];
+            conflict = self.reason[self.trail[trail_idx]];
             path -= 1;
             if path == 0 {
                 break;

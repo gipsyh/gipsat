@@ -3,7 +3,7 @@ use logic_form::Cnf;
 
 #[test]
 fn test1() {
-    let mut solver = Solver::new();
+    let mut solver = Solver::default();
     let lit0: Lit = solver.new_var().into();
     let lit1: Lit = solver.new_var().into();
     let lit2: Lit = solver.new_var().into();
@@ -24,7 +24,7 @@ fn test1() {
 fn test2() {
     let cnf = "p cnf 3 2\n1 -2 3 0\n-1 2 0\n";
     let cnf = Cnf::from_dimacs_str(cnf);
-    let mut solver = Solver::new();
+    let mut solver = Solver::default();
     for cls in cnf.iter() {
         solver.add_clause(cls);
     }

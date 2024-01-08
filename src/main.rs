@@ -4,10 +4,13 @@ use logic_form::Cnf;
 
 fn main() {
     let args = Args::parse();
-    let cnf = Cnf::from_dimacs_file(args.dimacs);
-    let mut solver = Solver::new();
+    let cnf = Cnf::from_dimacs_file(&args.dimacs);
+    let mut solver = Solver::new(args);
     for cls in cnf.iter() {
         solver.add_clause(cls);
     }
-    dbg!(solver.solve(&[]));
+    match solver.solve(&[]) {
+        gipsat::SatResult::Sat(_) => assert!(solver.verify()),
+        gipsat::SatResult::Unsat(_) => println!("UNSAT"),
+    };
 }

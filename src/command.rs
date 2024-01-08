@@ -1,6 +1,6 @@
 use clap::Parser;
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Default)]
 /// IC3
 pub struct Args {
     /// input dimacs file
@@ -17,10 +17,4 @@ pub struct Args {
     /// verify
     #[arg(long, default_value_t = false)]
     pub verify: bool,
-}
-
-impl Default for Args {
-    fn default() -> Self {
-        Args::parse_from([""])
-    }
 }
