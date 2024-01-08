@@ -1,5 +1,5 @@
 use crate::Solver;
-use logic_form::{Lit, Var};
+use logic_form::Lit;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Watcher {

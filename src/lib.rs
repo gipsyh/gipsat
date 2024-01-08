@@ -6,18 +6,17 @@ mod search;
 mod tests;
 mod utils;
 mod verify;
+mod vsids;
 
 pub use command::Args;
 
 use logic_form::{Clause, Lit, Var};
 use propagate::Watcher;
-use std::{
-    collections::BinaryHeap,
-    fmt::{self, Debug},
-};
+use std::fmt::{self, Debug};
 use utils::{LitMap, VarMap};
+use vsids::Vsids;
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Solver {
     args: Args,
     value: LitMap<Option<bool>>,
@@ -28,7 +27,7 @@ pub struct Solver {
     watchers: LitMap<Vec<Watcher>>,
     clauses: Vec<Clause>,
     reason: VarMap<Option<usize>>,
-    vsids: BinaryHeap<Var>,
+    vsids: Vsids,
 
     seen: VarMap<bool>,
 }
@@ -49,6 +48,7 @@ impl Solver {
         self.watchers.push(Vec::new());
         self.watchers.push(Vec::new());
         let res = Var::new(self.level.len() - 1);
+        self.vsids.new_var();
         self.vsids.push(res);
         self.seen.push(false);
         res
