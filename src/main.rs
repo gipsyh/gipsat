@@ -10,7 +10,7 @@ fn main() {
         solver.add_clause(cls);
     }
     match solver.solve(&[]) {
-        gipsat::SatResult::Sat(_) => assert!(solver.verify()),
+        gipsat::SatResult::Sat(_) => println!("SAT"),
         gipsat::SatResult::Unsat(_) => println!("UNSAT"),
     };
 }

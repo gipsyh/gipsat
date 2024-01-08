@@ -68,6 +68,7 @@ impl Solver {
             }
         }
         if clause.len() == 1 {
+            assert!(self.value[clause[0]].is_none());
             self.assign(clause[0], None);
         } else {
             self.add_clause_inner(clause);
