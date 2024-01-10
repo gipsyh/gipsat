@@ -1,5 +1,5 @@
 use crate::{basic::Clause, propagate::Watcher, Conflict, Model, SatResult, Solver};
-use logic_form::{Lit, Var};
+use logic_form::Lit;
 
 impl Solver {
     #[inline]

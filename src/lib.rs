@@ -11,6 +11,7 @@ mod utils;
 mod verify;
 mod vsids;
 
+use analyze::Analyze;
 pub use command::Args;
 
 use basic::Clause;
@@ -33,7 +34,7 @@ pub struct Solver {
     reason: VarMap<Option<usize>>,
     vsids: Vsids,
     phase_saving: VarMap<Option<Lit>>,
-    seen: VarMap<bool>,
+    analyze: Analyze,
     reduces: usize,
     reduce_limit: usize,
 }
@@ -58,7 +59,7 @@ impl Solver {
         self.vsids.new_var();
         self.vsids.push(res);
         self.phase_saving.push(None);
-        self.seen.push(false);
+        self.analyze.new_var();
         res
     }
 

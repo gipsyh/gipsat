@@ -1,7 +1,6 @@
+use crate::Solver;
 use logic_form::Lit;
 use std::ops::{Deref, DerefMut};
-
-use crate::Solver;
 
 #[derive(Default, Debug)]
 pub struct Clause {
