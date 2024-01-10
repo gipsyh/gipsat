@@ -46,6 +46,7 @@ impl Vsids {
         }
     }
 
+    #[inline]
     pub fn push(&mut self, var: Var) {
         if self.pos[var].is_some() {
             return;
@@ -56,6 +57,7 @@ impl Vsids {
         self.up(idx);
     }
 
+    #[inline]
     pub fn pop(&mut self) -> Option<Var> {
         if self.heap.is_empty() {
             return None;

@@ -1,7 +1,10 @@
 mod analyze;
+mod basic;
 mod command;
+mod others;
 mod propagate;
 mod search;
+mod simplify;
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -10,7 +13,8 @@ mod vsids;
 
 pub use command::Args;
 
-use logic_form::{Clause, Lit, Var};
+use basic::Clause;
+use logic_form::{Lit, Var};
 use propagate::Watcher;
 use std::fmt::{self, Debug};
 use utils::{LitMap, VarMap};
@@ -28,13 +32,17 @@ pub struct Solver {
     clauses: Vec<Clause>,
     reason: VarMap<Option<usize>>,
     vsids: Vsids,
+    phase_saving: VarMap<Option<Lit>>,
     seen: VarMap<bool>,
+    reduces: usize,
+    reduce_limit: usize,
 }
 
 impl Solver {
     pub fn new(args: Args) -> Self {
         Self {
             args,
+            reduce_limit: 8192,
             ..Default::default()
         }
     }
@@ -49,6 +57,7 @@ impl Solver {
         let res = Var::new(self.level.len() - 1);
         self.vsids.new_var();
         self.vsids.push(res);
+        self.phase_saving.push(None);
         self.seen.push(false);
         res
     }
@@ -67,7 +76,7 @@ impl Solver {
             }
         }
         if clause.len() == 1 {
-            assert!(self.value[clause[0]].is_none());
+            assert!(!matches!(self.value[clause[0]], Some(false)));
             self.assign(clause[0], None);
         } else {
             self.add_clause_inner(clause);

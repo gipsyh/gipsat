@@ -1,5 +1,5 @@
-use crate::{propagate::Watcher, Conflict, Model, SatResult, Solver};
-use logic_form::{Clause, Lit, Var};
+use crate::{basic::Clause, propagate::Watcher, Conflict, Model, SatResult, Solver};
+use logic_form::{Lit, Var};
 
 impl Solver {
     #[inline]
@@ -7,6 +7,7 @@ impl Solver {
         self.pos_in_trail.len()
     }
 
+    #[inline]
     pub fn assign(&mut self, lit: Lit, reason: Option<usize>) {
         self.trail.push(lit);
         self.value[lit] = Some(true);
@@ -15,27 +16,13 @@ impl Solver {
         self.level[lit] = self.highest_level();
     }
 
-    pub fn print_value(&self) {
-        for v in 0..self.num_var() {
-            let lit = Var::new(v).lit();
-            match self.value[lit] {
-                Some(true) => print!("{:?}", lit),
-                Some(false) => print!("{:?}", !lit),
-                None => print!("X"),
-            };
-            print!("\t");
-        }
-        println!();
-    }
-
+    #[inline]
     pub fn decide(&mut self) -> bool {
         while let Some(decide) = self.vsids.pop() {
             if self.value[decide.lit()].is_none() {
-                if self.args.verbose {
-                    dbg!(decide);
-                }
                 self.pos_in_trail.push(self.trail.len());
-                self.assign(decide.lit(), None);
+                let decide = self.phase_saving[decide].unwrap_or(decide.lit());
+                self.assign(decide, None);
                 return true;
             }
         }
@@ -49,10 +36,15 @@ impl Solver {
             self.value[bt] = None;
             self.value[!bt] = None;
             self.vsids.push(bt.var());
+            // self.phase_saving[bt] = Some(bt);
         }
         self.propagated = self.pos_in_trail[level];
         self.pos_in_trail.truncate(level);
     }
+
+    // pub fn restart(&mut self) {
+
+    // }
 
     pub fn add_clause_inner(&mut self, clause: Clause) -> usize {
         assert!(clause.len() > 1);
@@ -87,6 +79,7 @@ impl Solver {
                     self.assign(self.clauses[learnt_idx][0], Some(learnt_idx));
                 }
                 self.vsids.var_decay();
+                self.reduces += 1;
             } else if !self.decide() {
                 return SatResult::Sat(Model { solver: self });
             }

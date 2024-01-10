@@ -1,15 +1,14 @@
-use crate::Solver;
-use logic_form::{Clause, Lit};
+use crate::{basic::Clause, Solver};
+use logic_form::Lit;
 
 impl Solver {
-    pub fn analyze(&mut self, conflict: usize) -> (Clause, usize) {
+    pub fn analyze(&mut self, mut conflict: usize) -> (Clause, usize) {
         let mut learnt = Clause::from([Lit::default()]);
         let mut path = 0;
         let mut trail_idx = self.trail.len() - 1;
         let mut resolve_lit = None;
-        let mut conflict = Some(conflict);
         loop {
-            let cref = &self.clauses[conflict.unwrap()];
+            let cref = &self.clauses[conflict];
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
             for l in begin..cref.len() {
                 let lit = cref[l];
@@ -28,11 +27,11 @@ impl Solver {
             }
             self.seen[self.trail[trail_idx]] = false;
             resolve_lit = Some(self.trail[trail_idx]);
-            conflict = self.reason[self.trail[trail_idx]];
             path -= 1;
             if path == 0 {
                 break;
             }
+            conflict = self.reason[self.trail[trail_idx]].unwrap();
         }
         learnt[0] = !resolve_lit.unwrap();
         let btl = if learnt.len() == 1 {
