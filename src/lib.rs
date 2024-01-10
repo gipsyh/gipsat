@@ -28,7 +28,6 @@ pub struct Solver {
     clauses: Vec<Clause>,
     reason: VarMap<Option<usize>>,
     vsids: Vsids,
-
     seen: VarMap<bool>,
 }
 

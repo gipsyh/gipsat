@@ -1,14 +1,28 @@
 use crate::utils::VarMap;
 use logic_form::Var;
+use std::ops::MulAssign;
 
-#[derive(Default)]
 pub struct Vsids {
     activity: VarMap<f64>,
     heap: Vec<Var>,
     pos: VarMap<Option<usize>>,
+    var_inc: f64,
+}
+
+impl Default for Vsids {
+    fn default() -> Self {
+        Self {
+            activity: Default::default(),
+            heap: Default::default(),
+            pos: Default::default(),
+            var_inc: 1.0,
+        }
+    }
 }
 
 impl Vsids {
+    const VAR_DECAY: f64 = 0.95;
+
     pub fn new_var(&mut self) {
         self.pos.push(None);
         self.activity.push(f64::default());
@@ -21,13 +35,7 @@ impl Vsids {
         self.heap.swap(x, y);
     }
 
-    pub fn push(&mut self, var: Var) {
-        if self.pos[var].is_some() {
-            return;
-        }
-        let mut idx = self.heap.len();
-        self.heap.push(var);
-        self.pos[var] = Some(idx);
+    fn up(&mut self, mut idx: usize) {
         while idx > 0 {
             let pidx = (idx - 1) / 2;
             if self.activity[self.heap[pidx]] >= self.activity[self.heap[idx]] {
@@ -36,6 +44,16 @@ impl Vsids {
             self.swap(pidx, idx);
             idx = pidx;
         }
+    }
+
+    pub fn push(&mut self, var: Var) {
+        if self.pos[var].is_some() {
+            return;
+        }
+        let idx = self.heap.len();
+        self.heap.push(var);
+        self.pos[var] = Some(idx);
+        self.up(idx);
     }
 
     pub fn pop(&mut self) -> Option<Var> {
@@ -56,9 +74,24 @@ impl Vsids {
             if smallest == idx {
                 break;
             }
-            self.heap.swap(idx, smallest);
+            self.swap(idx, smallest);
             idx = smallest;
         }
         value
+    }
+
+    pub fn var_bump(&mut self, var: Var) {
+        self.activity[var] += self.var_inc;
+        if self.activity[var] > 1e100 {
+            self.activity.iter_mut().for_each(|a| a.mul_assign(1e-100));
+            self.var_inc *= 1e-100;
+        }
+        if let Some(pos) = self.pos[var] {
+            self.up(pos)
+        }
+    }
+
+    pub fn var_decay(&mut self) {
+        self.var_inc *= 1.0 / Self::VAR_DECAY
     }
 }

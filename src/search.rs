@@ -86,6 +86,7 @@ impl Solver {
                     let learnt_idx = self.add_clause_inner(learnt);
                     self.assign(self.clauses[learnt_idx][0], Some(learnt_idx));
                 }
+                self.vsids.var_decay();
             } else if !self.decide() {
                 return SatResult::Sat(Model { solver: self });
             }
