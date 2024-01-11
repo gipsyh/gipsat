@@ -1,5 +1,6 @@
-use crate::Solver;
+use crate::{utils::LitMap, Solver};
 use logic_form::Lit;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Watcher {
@@ -10,6 +11,33 @@ pub struct Watcher {
 impl Watcher {
     pub fn new(clause: usize, blocker: Lit) -> Self {
         Self { clause, blocker }
+    }
+}
+
+#[derive(Default)]
+pub struct Watchers {
+    watchers: LitMap<Vec<Watcher>>,
+}
+
+impl Watchers {
+    pub fn remove(&mut self, lit: Lit, clause: usize) {
+        self.watchers[lit].retain(|w| w.clause != clause);
+    }
+}
+
+impl Deref for Watchers {
+    type Target = LitMap<Vec<Watcher>>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.watchers
+    }
+}
+
+impl DerefMut for Watchers {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.watchers
     }
 }
 

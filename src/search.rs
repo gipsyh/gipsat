@@ -1,4 +1,4 @@
-use crate::{basic::Clause, propagate::Watcher, Conflict, Model, SatResult, Solver};
+use crate::{Conflict, Model, SatResult, Solver};
 use logic_form::Lit;
 
 impl Solver {
@@ -46,15 +46,6 @@ impl Solver {
 
     // }
 
-    pub fn add_clause_inner(&mut self, clause: Clause) -> usize {
-        assert!(clause.len() > 1);
-        let id = self.clauses.len();
-        self.watchers[!clause[0]].push(Watcher::new(id, clause[1]));
-        self.watchers[!clause[1]].push(Watcher::new(id, clause[0]));
-        self.clauses.push(clause);
-        self.clauses.len() - 1
-    }
-
     pub fn search(&mut self, assumption: &[Lit]) -> SatResult<'_> {
         loop {
             if self.args.verbose {
@@ -71,15 +62,19 @@ impl Solver {
                 if self.args.verbose {
                     dbg!(btl);
                 }
+                let lbd = self.calculate_lbd(&learnt);
+                self.lbd_queue.push(lbd);
                 self.backtrack(btl);
                 if learnt.len() == 1 {
                     self.assign(learnt[0], None);
                 } else {
-                    let learnt_idx = self.add_clause_inner(learnt);
+                    let learnt_idx = self.add_learnt_clause(learnt, lbd);
                     self.assign(self.clauses[learnt_idx][0], Some(learnt_idx));
                 }
                 self.vsids.var_decay();
                 self.reduces += 1;
+            } else if self.reduces > self.reduce_limit {
+                self.reduce();
             } else if !self.decide() {
                 return SatResult::Sat(Model { solver: self });
             }

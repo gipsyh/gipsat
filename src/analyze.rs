@@ -1,5 +1,5 @@
-use crate::{basic::Clause, utils::VarMap, Solver};
-use logic_form::Lit;
+use crate::{utils::VarMap, Solver};
+use logic_form::{Clause, Lit};
 use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -25,19 +25,25 @@ impl Mark {
 
 #[derive(Default)]
 pub struct Analyze {
-    seen: VarMap<Mark>,
+    mark: VarMap<Mark>,
     clear: Vec<Lit>,
 }
 
 impl Analyze {
     pub fn new_var(&mut self) {
-        self.seen.push(Default::default());
+        self.mark.push(Default::default());
         self.clear.push(Default::default());
     }
 
-    pub fn clear(&mut self) {
+    #[inline]
+    fn mark(&mut self, lit: Lit, m: Mark) {
+        self.mark[lit] = m;
+        self.clear.push(lit);
+    }
+
+    fn clear(&mut self) {
         for c in self.clear.iter() {
-            self.seen[*c].clear();
+            self.mark[*c].clear();
         }
         self.clear.clear();
     }
@@ -48,13 +54,13 @@ impl Deref for Analyze {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.seen
+        &self.mark
     }
 }
 
 impl DerefMut for Analyze {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.seen
+        &mut self.mark
     }
 }
 
@@ -76,8 +82,7 @@ impl Solver {
                     stack.push((p, 0));
                     for (l, _) in stack {
                         if let Mark::Unseen = self.analyze[l] {
-                            self.analyze[l] = Mark::Failed;
-                            self.analyze.clear.push(l);
+                            self.analyze.mark(l, Mark::Failed);
                         }
                     }
                     return false;
@@ -87,14 +92,13 @@ impl Solver {
                 continue 'a;
             }
             if let Mark::Unseen = self.analyze[p] {
-                self.analyze[p] = Mark::Removable;
-                self.analyze.clear.push(p);
+                self.analyze.mark(p, Mark::Removable);
             }
         }
         true
     }
 
-    fn minimal_learnt(&mut self, learnt: Clause) -> Clause {
+    fn minimal_learnt(&mut self, learnt: logic_form::Clause) -> Clause {
         let mut minimal_learnt = Clause::from([learnt[0]]);
         for l in &learnt[1..] {
             if !self.lit_redundant(*l) {
@@ -102,6 +106,19 @@ impl Solver {
             }
         }
         minimal_learnt
+    }
+
+    pub fn calculate_lbd(&mut self, learnt: &Clause) -> usize {
+        let mut lbd = 0;
+        for l in learnt.iter() {
+            let d = self.trail[self.level[*l]];
+            if !self.analyze[d].seen() {
+                lbd += 1;
+                self.analyze.mark(d, Mark::Seen);
+            }
+        }
+        self.analyze.clear();
+        lbd
     }
 
     pub fn analyze(&mut self, mut conflict: usize) -> (Clause, usize) {
@@ -138,6 +155,7 @@ impl Solver {
         learnt[0] = !resolve_lit.unwrap();
         self.analyze.clear.extend_from_slice(&learnt);
         learnt = self.minimal_learnt(learnt);
+        self.analyze.clear();
         let btl = if learnt.len() == 1 {
             0
         } else {
@@ -147,7 +165,6 @@ impl Solver {
             learnt.swap(1, max_idx);
             self.level[learnt[1]]
         };
-        self.analyze.clear();
         (learnt, btl)
     }
 }

@@ -1,4 +1,5 @@
 use logic_form::{Lit, Var};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 #[derive(Debug, Default)]
@@ -86,5 +87,29 @@ impl<T> DerefMut for LitMap<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
+    }
+}
+
+pub struct Rand {
+    rng: StdRng,
+}
+
+impl Rand {
+    pub fn new(seed: u64) -> Self {
+        Self {
+            rng: StdRng::seed_from_u64(seed),
+        }
+    }
+
+    pub fn rand_bool(&mut self) -> bool {
+        self.rng.gen_bool(0.5)
+    }
+}
+
+impl Default for Rand {
+    fn default() -> Self {
+        Self {
+            rng: StdRng::seed_from_u64(0),
+        }
     }
 }

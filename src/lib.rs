@@ -1,5 +1,5 @@
 mod analyze;
-mod basic;
+mod clause;
 mod command;
 mod others;
 mod propagate;
@@ -11,30 +11,32 @@ mod utils;
 mod verify;
 mod vsids;
 
-use analyze::Analyze;
 pub use command::Args;
 
-use basic::Clause;
-use logic_form::{Lit, Var};
-use propagate::Watcher;
+use analyze::Analyze;
+use clause::{ClauseDB, LbdQueue};
+use logic_form::{Clause, Lit, Var};
+use propagate::{Watcher, Watchers};
 use std::fmt::{self, Debug};
-use utils::{LitMap, VarMap};
+use utils::{LitMap, Rand, VarMap};
 use vsids::Vsids;
 
 #[derive(Default)]
 pub struct Solver {
     args: Args,
+    clauses: ClauseDB,
+    watchers: Watchers,
     value: LitMap<Option<bool>>,
     trail: Vec<Lit>,
     pos_in_trail: Vec<usize>,
     level: VarMap<usize>,
-    propagated: usize,
-    watchers: LitMap<Vec<Watcher>>,
-    clauses: Vec<Clause>,
     reason: VarMap<Option<usize>>,
+    propagated: usize,
     vsids: Vsids,
     phase_saving: VarMap<Option<Lit>>,
+    lbd_queue: LbdQueue,
     analyze: Analyze,
+    rand: Rand,
     reduces: usize,
     reduce_limit: usize,
 }
@@ -80,7 +82,7 @@ impl Solver {
             assert!(!matches!(self.value[clause[0]], Some(false)));
             self.assign(clause[0], None);
         } else {
-            self.add_clause_inner(clause);
+            self.add_origin_clause(clause);
         }
     }
 
