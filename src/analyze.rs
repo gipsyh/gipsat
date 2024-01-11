@@ -167,4 +167,28 @@ impl Solver {
         };
         (learnt, btl)
     }
+
+    pub fn analyze_unsat_core(&mut self, mut p: Lit) {
+        self.unsat_core.clear();
+        self.unsat_core.insert(p);
+        if self.highest_level() == 0 {
+            return;
+        }
+        self.analyze[p].seen();
+        for i in (self.pos_in_trail[0]..self.trail.len()).rev() {
+            p = self.trail[i];
+            if self.analyze[p].seen() {
+                if let Some(rc) = self.reason[p] {
+                    for l in &self.clauses[rc][1..] {
+                        if self.level[*l] > 0 {
+                            self.analyze[*l].seen();
+                        }
+                    }
+                } else {
+                    self.unsat_core.insert(p);
+                }
+                self.analyze[p].clear();
+            }
+        }
+    }
 }

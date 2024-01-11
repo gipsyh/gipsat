@@ -42,12 +42,14 @@ impl<T> IndexMut<Lit> for VarMap<T> {
 impl<T> Deref for VarMap<T> {
     type Target = Vec<T>;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.map
     }
 }
 
 impl<T> DerefMut for VarMap<T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
     }
@@ -87,6 +89,37 @@ impl<T> DerefMut for LitMap<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
+    }
+}
+
+#[derive(Default)]
+pub struct LitSet {
+    set: Vec<Lit>,
+    has: LitMap<bool>,
+}
+
+impl LitSet {
+    pub fn new_var(&mut self) {
+        self.has.push(false);
+        self.has.push(false);
+    }
+
+    pub fn insert(&mut self, lit: Lit) {
+        if !self.has[lit] {
+            self.set.push(lit);
+            self.has[lit] = true;
+        }
+    }
+
+    pub fn has(&self, lit: Lit) -> bool {
+        self.has[lit]
+    }
+
+    pub fn clear(&mut self) {
+        for l in self.set.iter() {
+            self.has[*l] = false;
+        }
+        self.set.clear();
     }
 }
 

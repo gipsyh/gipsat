@@ -151,10 +151,8 @@ impl Solver {
         self.backtrack(0);
         self.reduces = 0;
         self.reduce_limit += 512;
-        let mut num = 0;
         for l in take(&mut self.clauses.learnt) {
             if self.clauses[l].lbd >= 5 && self.rand.rand_bool() {
-                num += 1;
                 self.remove_clause(l);
             } else {
                 self.clauses.learnt.push(l);

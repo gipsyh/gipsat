@@ -1,4 +1,4 @@
-use crate::{Conflict, Model, SatResult, Solver};
+use crate::Solver;
 use logic_form::Lit;
 
 impl Solver {
@@ -17,12 +17,17 @@ impl Solver {
     }
 
     #[inline]
-    pub fn decide(&mut self) -> bool {
+    pub fn decide(&mut self, lit: Lit) {
+        self.pos_in_trail.push(self.trail.len());
+        self.assign(lit, None);
+    }
+
+    #[inline]
+    pub fn vsids_decide(&mut self) -> bool {
         while let Some(decide) = self.vsids.pop() {
             if self.value[decide.lit()].is_none() {
-                self.pos_in_trail.push(self.trail.len());
                 let decide = self.phase_saving[decide].unwrap_or(decide.lit());
-                self.assign(decide, None);
+                self.decide(decide);
                 return true;
             }
         }
@@ -46,8 +51,9 @@ impl Solver {
 
     // }
 
-    pub fn search(&mut self, assumption: &[Lit]) -> SatResult<'_> {
-        loop {
+    pub fn search(&mut self, assumption: &[Lit]) -> bool {
+        let mut assumption = assumption.iter();
+        'ml: loop {
             if self.args.verbose {
                 self.print_value();
             }
@@ -56,7 +62,7 @@ impl Solver {
                     println!("{:?}", &self.clauses[conflict]);
                 }
                 if self.highest_level() == 0 {
-                    return SatResult::Unsat(Conflict { solver: self });
+                    return false;
                 }
                 let (learnt, btl) = self.analyze(conflict);
                 if self.args.verbose {
@@ -73,10 +79,26 @@ impl Solver {
                 }
                 self.vsids.var_decay();
                 self.reduces += 1;
-            } else if self.reduces > self.reduce_limit {
-                self.reduce();
-            } else if !self.decide() {
-                return SatResult::Sat(Model { solver: self });
+            } else {
+                if self.reduces > self.reduce_limit {
+                    self.reduce();
+                }
+                for a in assumption.by_ref() {
+                    match self.value[*a] {
+                        Some(true) => (),
+                        Some(false) => {
+                            self.analyze_unsat_core(*a);
+                            return false;
+                        }
+                        None => {
+                            self.decide(*a);
+                            continue 'ml;
+                        }
+                    }
+                }
+                if !self.vsids_decide() {
+                    return true;
+                }
             }
         }
     }

@@ -16,9 +16,9 @@ pub use command::Args;
 use analyze::Analyze;
 use clause::{ClauseDB, LbdQueue};
 use logic_form::{Clause, Lit, Var};
-use propagate::{Watcher, Watchers};
+use propagate::Watchers;
 use std::fmt::{self, Debug};
-use utils::{LitMap, Rand, VarMap};
+use utils::{LitMap, LitSet, Rand, VarMap};
 use vsids::Vsids;
 
 #[derive(Default)]
@@ -39,6 +39,7 @@ pub struct Solver {
     rand: Rand,
     reduces: usize,
     reduce_limit: usize,
+    unsat_core: LitSet,
 }
 
 impl Solver {
@@ -62,6 +63,7 @@ impl Solver {
         self.vsids.push(res);
         self.phase_saving.push(None);
         self.analyze.new_var();
+        self.unsat_core.new_var();
         res
     }
 
@@ -87,7 +89,11 @@ impl Solver {
     }
 
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
-        self.search(assumption)
+        if self.search(assumption) {
+            SatResult::Sat(Model { solver: self })
+        } else {
+            SatResult::Unsat(Conflict { solver: self })
+        }
     }
 }
 
@@ -107,7 +113,7 @@ pub struct Conflict<'a> {
 
 impl Conflict<'_> {
     pub fn has(&self, lit: Lit) -> bool {
-        todo!()
+        self.solver.unsat_core.has(lit)
     }
 }
 
