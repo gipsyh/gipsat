@@ -40,15 +40,20 @@ pub struct Solver {
     reduces: usize,
     reduce_limit: usize,
     unsat_core: LitSet,
+
+    pub lazy_clauses: Vec<Clause>,
 }
 
 impl Solver {
-    pub fn new(args: Args) -> Self {
+    pub fn new() -> Self {
         Self {
-            args,
             reduce_limit: 8192,
             ..Default::default()
         }
+    }
+
+    pub fn set_args(&mut self, args: Args) {
+        self.args = args
     }
 
     pub fn new_var(&mut self) -> Var {
@@ -73,7 +78,9 @@ impl Solver {
     }
 
     pub fn add_clause(&mut self, clause: &[Lit]) {
-        assert!(self.highest_level() == 0);
+        if self.highest_level() > 0 {
+            self.backtrack(0);
+        }
         let clause = Clause::from(clause);
         for l in clause.iter() {
             while self.num_var() <= l.var().into() {
@@ -88,44 +95,54 @@ impl Solver {
         }
     }
 
+    pub fn add_lazy_clause(&mut self, clause: &[Lit]) {
+        self.lazy_clauses.push(Clause::from(clause));
+    }
+
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
+        self.backtrack(0);
+        while let Some(lc) = self.lazy_clauses.pop() {
+            self.add_clause(&lc);
+        }
         if self.search(assumption) {
             SatResult::Sat(Model { solver: self })
         } else {
             SatResult::Unsat(Conflict { solver: self })
         }
     }
-}
 
-pub struct Model<'a> {
-    solver: &'a mut Solver,
-}
+    /// # Safety
+    /// unsafe get sat model
+    pub unsafe fn get_model(&self) -> Model<'static> {
+        let solver = unsafe { &*(self as *const Self) };
+        Model { solver }
+    }
 
-impl Model<'_> {
-    pub fn lit_value(&self, lit: Lit) -> Option<bool> {
-        self.solver.value[lit]
+    /// # Safety
+    /// unsafe get unsat core
+    pub unsafe fn get_conflict(&self) -> Conflict<'static> {
+        let solver = unsafe { &*(self as *const Self) };
+        Conflict { solver }
     }
 }
 
-impl Drop for Model<'_> {
-    fn drop(&mut self) {
-        self.solver.backtrack(0);
+pub struct Model<'a> {
+    solver: &'a Solver,
+}
+
+impl Model<'_> {
+    pub fn lit_value(&self, lit: Lit) -> bool {
+        self.solver.value[lit].unwrap()
     }
 }
 
 pub struct Conflict<'a> {
-    solver: &'a mut Solver,
+    solver: &'a Solver,
 }
 
 impl Conflict<'_> {
     pub fn has(&self, lit: Lit) -> bool {
         self.solver.unsat_core.has(lit)
-    }
-}
-
-impl Drop for Conflict<'_> {
-    fn drop(&mut self) {
-        self.solver.backtrack(0);
     }
 }
 

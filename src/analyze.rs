@@ -13,6 +13,11 @@ pub enum Mark {
 
 impl Mark {
     #[inline]
+    pub fn see(&mut self) {
+        *self = Mark::Seen;
+    }
+
+    #[inline]
     pub fn seen(&self) -> bool {
         !matches!(self, Mark::Unseen)
     }
@@ -114,7 +119,7 @@ impl Solver {
             let d = self.trail[self.level[*l]];
             if !self.analyze[d].seen() {
                 lbd += 1;
-                self.analyze.mark(d, Mark::Seen);
+                self.analyze[d].see();
             }
         }
         self.analyze.clear();
@@ -133,7 +138,7 @@ impl Solver {
                 let lit = cref[l];
                 if !self.analyze[lit].seen() && self.level[lit] > 0 {
                     self.vsids.var_bump(lit.var());
-                    self.analyze[lit] = Mark::Seen;
+                    self.analyze[lit].see();
                     if self.level[lit] >= self.highest_level() {
                         path += 1;
                     } else {
@@ -174,14 +179,14 @@ impl Solver {
         if self.highest_level() == 0 {
             return;
         }
-        self.analyze[p].seen();
+        self.analyze[p].see();
         for i in (self.pos_in_trail[0]..self.trail.len()).rev() {
             p = self.trail[i];
             if self.analyze[p].seen() {
                 if let Some(rc) = self.reason[p] {
                     for l in &self.clauses[rc][1..] {
                         if self.level[*l] > 0 {
-                            self.analyze[*l].seen();
+                            self.analyze[*l].see();
                         }
                     }
                 } else {

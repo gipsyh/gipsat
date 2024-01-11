@@ -92,7 +92,7 @@ impl<T> DerefMut for LitMap<T> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LitSet {
     set: Vec<Lit>,
     has: LitMap<bool>,
