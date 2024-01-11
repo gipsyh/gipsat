@@ -88,8 +88,11 @@ impl Solver {
             }
         }
         if clause.len() == 1 {
-            assert!(!matches!(self.value[clause[0]], Some(false)));
-            self.assign(clause[0], None);
+            match self.value[clause[0]] {
+                Some(true) => (),
+                Some(false) => panic!(),
+                None => self.assign(clause[0], None),
+            }
         } else {
             self.add_origin_clause(clause);
         }
