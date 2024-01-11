@@ -17,17 +17,17 @@ impl Solver {
     }
 
     #[inline]
-    pub fn decide(&mut self, lit: Lit) {
-        self.pos_in_trail.push(self.trail.len());
-        self.assign(lit, None);
+    pub fn new_level(&mut self) {
+        self.pos_in_trail.push(self.trail.len())
     }
 
     #[inline]
-    pub fn vsids_decide(&mut self) -> bool {
+    pub fn decide(&mut self) -> bool {
         while let Some(decide) = self.vsids.pop() {
             if self.value[decide.lit()].is_none() {
                 let decide = self.phase_saving[decide].unwrap_or(decide.lit());
-                self.decide(decide);
+                self.new_level();
+                self.assign(decide, None);
                 return true;
             }
         }
@@ -35,7 +35,9 @@ impl Solver {
     }
 
     pub fn backtrack(&mut self, level: usize) {
-        assert!(self.highest_level() > level);
+        if self.highest_level() == level {
+            return;
+        }
         while self.trail.len() > self.pos_in_trail[level] {
             let bt = self.trail.pop().unwrap();
             self.value[bt] = None;
@@ -52,7 +54,6 @@ impl Solver {
     // }
 
     pub fn search(&mut self, assumption: &[Lit]) -> bool {
-        let mut assumption = assumption.iter();
         'ml: loop {
             if self.args.verbose {
                 self.print_value();
@@ -83,20 +84,22 @@ impl Solver {
                 if self.reduces > self.reduce_limit {
                     self.reduce();
                 }
-                for a in assumption.by_ref() {
-                    match self.value[*a] {
-                        Some(true) => (),
+                while self.highest_level() < assumption.len() {
+                    let a = assumption[self.highest_level()];
+                    match self.value[a] {
+                        Some(true) => self.new_level(),
                         Some(false) => {
-                            self.analyze_unsat_core(*a);
+                            self.analyze_unsat_core(a);
                             return false;
                         }
                         None => {
-                            self.decide(*a);
+                            self.new_level();
+                            self.assign(a, None);
                             continue 'ml;
                         }
                     }
                 }
-                if !self.vsids_decide() {
+                if !self.decide() {
                     return true;
                 }
             }

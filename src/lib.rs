@@ -98,7 +98,7 @@ impl Solver {
 }
 
 pub struct Model<'a> {
-    solver: &'a Solver,
+    solver: &'a mut Solver,
 }
 
 impl Model<'_> {
@@ -107,13 +107,25 @@ impl Model<'_> {
     }
 }
 
+impl Drop for Model<'_> {
+    fn drop(&mut self) {
+        self.solver.backtrack(0);
+    }
+}
+
 pub struct Conflict<'a> {
-    solver: &'a Solver,
+    solver: &'a mut Solver,
 }
 
 impl Conflict<'_> {
     pub fn has(&self, lit: Lit) -> bool {
         self.solver.unsat_core.has(lit)
+    }
+}
+
+impl Drop for Conflict<'_> {
+    fn drop(&mut self) {
+        self.solver.backtrack(0);
     }
 }
 

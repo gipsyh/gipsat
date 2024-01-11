@@ -20,6 +20,13 @@ fn test1() {
             todo!()
         }
     }
+    solver.add_clause(&Clause::from([!lit0, !lit1]));
+    match solver.solve(&[lit2]) {
+        SatResult::Sat(_) => {
+            todo!();
+        }
+        SatResult::Unsat(_) => {}
+    };
 }
 
 #[test]
