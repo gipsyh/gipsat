@@ -1,5 +1,4 @@
 use super::*;
-use logic_form::Cnf;
 
 #[test]
 fn test1() {
@@ -27,15 +26,4 @@ fn test1() {
         }
         SatResult::Unsat(_) => {}
     };
-}
-
-#[test]
-fn test2() {
-    let cnf = "p cnf 3 2\n1 -2 3 0\n-1 2 0\n";
-    let cnf = Cnf::from_dimacs_str(cnf);
-    let mut solver = Solver::default();
-    for cls in cnf.iter() {
-        solver.add_clause(cls);
-    }
-    dbg!(solver.solve(&[]));
 }

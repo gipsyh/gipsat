@@ -11,23 +11,6 @@ pub enum Mark {
     Failed,
 }
 
-impl Mark {
-    #[inline]
-    pub fn see(&mut self) {
-        *self = Mark::Seen;
-    }
-
-    #[inline]
-    pub fn seen(&self) -> bool {
-        !matches!(self, Mark::Unseen)
-    }
-
-    #[inline]
-    pub fn clear(&mut self) {
-        *self = Mark::Unseen;
-    }
-}
-
 #[derive(Default)]
 pub struct Analyze {
     mark: VarMap<Mark>,
@@ -37,7 +20,17 @@ pub struct Analyze {
 impl Analyze {
     pub fn new_var(&mut self) {
         self.mark.push(Default::default());
-        self.clear.push(Default::default());
+    }
+
+    #[inline]
+    pub fn seen(&mut self, lit: Lit) -> bool {
+        !matches!(self.mark[lit], Mark::Unseen)
+    }
+
+    #[inline]
+    pub fn see(&mut self, lit: Lit) {
+        self.mark[lit] = Mark::Seen;
+        self.clear.push(lit);
     }
 
     #[inline]
@@ -48,7 +41,7 @@ impl Analyze {
 
     fn clear(&mut self) {
         for c in self.clear.iter() {
-            self.mark[*c].clear();
+            self.mark[*c] = Mark::Unseen;
         }
         self.clear.clear();
     }
@@ -117,9 +110,9 @@ impl Solver {
         let mut lbd = 0;
         for l in learnt.iter() {
             let d = self.trail[self.level[*l]];
-            if !self.analyze[d].seen() {
+            if !self.analyze.seen(d) {
                 lbd += 1;
-                self.analyze[d].see();
+                self.analyze.see(d);
             }
         }
         self.analyze.clear();
@@ -136,9 +129,9 @@ impl Solver {
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
             for l in begin..cref.len() {
                 let lit = cref[l];
-                if !self.analyze[lit].seen() && self.level[lit] > 0 {
+                if !self.analyze.seen(lit) && self.level[lit] > 0 {
                     self.vsids.var_bump(lit.var());
-                    self.analyze[lit].see();
+                    self.analyze[lit] = Mark::Seen;
                     if self.level[lit] >= self.highest_level() {
                         path += 1;
                     } else {
@@ -146,10 +139,10 @@ impl Solver {
                     }
                 }
             }
-            while !self.analyze[self.trail[trail_idx]].seen() {
+            while !self.analyze.seen(self.trail[trail_idx]) {
                 trail_idx -= 1;
             }
-            self.analyze[self.trail[trail_idx]].clear();
+            self.analyze[self.trail[trail_idx]] = Mark::Unseen;
             resolve_lit = Some(self.trail[trail_idx]);
             path -= 1;
             if path == 0 {
@@ -179,21 +172,21 @@ impl Solver {
         if self.highest_level() == 0 {
             return;
         }
-        self.analyze[p].see();
+        self.analyze.see(p);
         for i in (self.pos_in_trail[0]..self.trail.len()).rev() {
             p = self.trail[i];
-            if self.analyze[p].seen() {
+            if self.analyze.seen(p) {
                 if let Some(rc) = self.reason[p] {
                     for l in &self.clauses[rc][1..] {
                         if self.level[*l] > 0 {
-                            self.analyze[*l].see();
+                            self.analyze.see(*l);
                         }
                     }
                 } else {
                     self.unsat_core.insert(p);
                 }
-                self.analyze[p].clear();
             }
         }
+        self.analyze.clear();
     }
 }

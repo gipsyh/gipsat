@@ -41,7 +41,7 @@ pub struct Solver {
     reduce_limit: usize,
     unsat_core: LitSet,
 
-    pub lazy_clauses: Vec<Clause>,
+    lazy_clauses: Vec<Clause>,
 }
 
 impl Solver {

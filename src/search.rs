@@ -9,6 +9,7 @@ impl Solver {
 
     #[inline]
     pub fn assign(&mut self, lit: Lit, reason: Option<usize>) {
+        assert!(self.value[lit].is_none() && self.value[!lit].is_none());
         self.trail.push(lit);
         self.value[lit] = Some(true);
         self.value[!lit] = Some(false);
