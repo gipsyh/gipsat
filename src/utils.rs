@@ -128,12 +128,6 @@ pub struct Rand {
 }
 
 impl Rand {
-    pub fn new(seed: u64) -> Self {
-        Self {
-            rng: StdRng::seed_from_u64(seed),
-        }
-    }
-
     pub fn rand_bool(&mut self) -> bool {
         self.rng.gen_bool(0.5)
     }

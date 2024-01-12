@@ -30,6 +30,10 @@ impl Clause {
             remove: false,
         }
     }
+
+    pub fn valid(&self) -> bool {
+        !self.remove
+    }
 }
 
 impl Deref for Clause {
@@ -159,5 +163,18 @@ impl Solver {
                 self.clauses.learnt.push(l);
             }
         }
+    }
+
+    pub fn verify(&mut self) -> bool {
+        for i in 0..self.clauses.len() {
+            if self.clauses[i].valid()
+                && !self.clauses[i]
+                    .iter()
+                    .any(|l| matches!(self.value[*l], Some(true)))
+            {
+                return false;
+            }
+        }
+        true
     }
 }

@@ -8,7 +8,6 @@ mod simplify;
 #[cfg(test)]
 mod tests;
 mod utils;
-mod verify;
 mod vsids;
 
 pub use command::Args;
