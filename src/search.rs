@@ -74,6 +74,7 @@ impl Solver {
                 self.lbd_queue.push(lbd);
                 self.backtrack(btl);
                 if learnt.len() == 1 {
+                    assert!(btl == 0);
                     self.assign(learnt[0], None);
                 } else {
                     let learnt_idx = self.add_learnt_clause(learnt, lbd);

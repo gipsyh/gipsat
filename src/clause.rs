@@ -143,9 +143,9 @@ impl Solver {
     fn remove_clause(&mut self, cidx: usize) {
         let cref = &mut self.clauses[cidx];
         cref.remove = true;
-        cref.clause = Default::default();
         self.watchers.remove(!cref[0], cidx);
         self.watchers.remove(!cref[1], cidx);
+        cref.clause = Default::default();
     }
 
     pub fn reduce(&mut self) {

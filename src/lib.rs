@@ -77,17 +77,22 @@ impl Solver {
         self.reason.len()
     }
 
-    pub fn add_clause(&mut self, clause: &[Lit]) {
-        if self.highest_level() > 0 {
-            self.backtrack(0);
-        }
-        let clause = Clause::from(clause);
-        for l in clause.iter() {
+    pub fn add_clause(&mut self, cls: &[Lit]) {
+        self.backtrack(0);
+        let mut clause = Clause::new();
+        for l in cls.iter() {
             while self.num_var() <= l.var().into() {
                 self.new_var();
             }
+            match self.value[*l] {
+                Some(true) => return,
+                Some(false) => (),
+                None => clause.push(*l),
+            }
         }
-        if clause.len() == 1 {
+        if clause.len() == 0 {
+            todo!()
+        } else if clause.len() == 1 {
             match self.value[clause[0]] {
                 Some(true) => (),
                 Some(false) => panic!(),
