@@ -19,10 +19,19 @@ fn test1() {
             todo!()
         }
     }
-    solver.add_clause(&Clause::from([!lit0, !lit1]));
-    match solver.solve(&[lit2]) {
-        SatResult::Sat(_) => {
-            todo!();
+    match solver.solve_with_constrain(&[lit2], &[!lit0, !lit1]) {
+        SatResult::Sat(sat) => {
+            dbg!(sat.lit_value(lit0));
+            dbg!(sat.lit_value(lit1));
+            dbg!(sat.lit_value(lit2));
+        }
+        SatResult::Unsat(_) => {}
+    };
+    match solver.solve(&[]) {
+        SatResult::Sat(sat) => {
+            dbg!(sat.lit_value(lit0));
+            dbg!(sat.lit_value(lit1));
+            dbg!(sat.lit_value(lit2));
         }
         SatResult::Unsat(_) => {}
     };

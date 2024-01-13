@@ -1,39 +1,48 @@
 use crate::{propagate::Watcher, Solver};
-use std::{
-    mem::take,
-    ops::{Deref, DerefMut},
-};
+use std::ops::{Deref, DerefMut};
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
+pub enum ClauseKind {
+    Origin,
+    Learnt,
+    Temporary,
+    TemporaryLearnt,
+    Removed,
+}
+
+#[derive(Debug)]
 pub struct Clause {
     clause: logic_form::Clause,
-    lbd: usize,
-    learnt: bool,
-    remove: bool,
+    kind: ClauseKind,
 }
 
 impl Clause {
-    pub fn new_origin(clause: logic_form::Clause) -> Self {
-        Self {
-            clause,
-            lbd: 0,
-            learnt: false,
-            remove: false,
-        }
+    pub fn new(clause: logic_form::Clause, kind: ClauseKind) -> Self {
+        Self { clause, kind }
     }
 
-    pub fn new_learnt(clause: logic_form::Clause, lbd: usize) -> Self {
-        Self {
-            clause,
-            lbd,
-            learnt: true,
-            remove: false,
-        }
+    // #[inline]
+    // pub fn is_leanrt(&self) -> bool {
+    //     matches!(self, ClauseKind::Learnt |)
+    // }
+
+    #[inline]
+    pub fn is_temporary(&self) -> bool {
+        matches!(
+            self.kind,
+            ClauseKind::Temporary | ClauseKind::TemporaryLearnt
+        )
     }
 
-    pub fn valid(&self) -> bool {
-        !self.remove
+    #[inline]
+    pub fn set_kind(&mut self, kind: ClauseKind) {
+        self.kind = kind
     }
+
+    // #[inline]
+    // pub fn is_valid(&self) -> bool {
+    //     !self.kind.contains(ClauseKind::Removed)
+    // }
 }
 
 impl Deref for Clause {
@@ -98,6 +107,7 @@ pub struct ClauseDB {
     clauses: Vec<Clause>,
     origin: Vec<usize>,
     learnt: Vec<usize>,
+    temporary: Vec<usize>,
 }
 
 impl Deref for ClauseDB {
@@ -125,56 +135,64 @@ impl Solver {
         false
     }
 
-    pub fn add_origin_clause(&mut self, clause: logic_form::Clause) {
+    pub fn attach_clause(&mut self, clause: Clause) -> usize {
         assert!(clause.len() > 1);
         let id = self.clauses.len();
         self.watchers[!clause[0]].push(Watcher::new(id, clause[1]));
         self.watchers[!clause[1]].push(Watcher::new(id, clause[0]));
-        self.clauses.clauses.push(Clause::new_origin(clause));
-        self.clauses.origin.push(id);
-    }
-
-    pub fn add_learnt_clause(&mut self, clause: logic_form::Clause, lbd: usize) -> usize {
-        assert!(clause.len() > 1);
-        let id = self.clauses.len();
-        self.watchers[!clause[0]].push(Watcher::new(id, clause[1]));
-        self.watchers[!clause[1]].push(Watcher::new(id, clause[0]));
-        self.clauses.clauses.push(Clause::new_learnt(clause, lbd));
-        self.clauses.learnt.push(id);
+        match clause.kind {
+            ClauseKind::Origin => self.clauses.origin.push(id),
+            ClauseKind::Learnt => self.clauses.learnt.push(id),
+            ClauseKind::Temporary => self.clauses.temporary.push(id),
+            ClauseKind::TemporaryLearnt => {
+                self.clauses.learnt.push(id);
+                self.clauses.temporary.push(id);
+            }
+            _ => todo!(),
+        }
+        self.clauses.clauses.push(clause);
         id
     }
 
     fn remove_clause(&mut self, cidx: usize) {
         let cref = &mut self.clauses[cidx];
-        cref.remove = true;
+        cref.kind = ClauseKind::Removed;
         self.watchers.remove(!cref[0], cidx);
         self.watchers.remove(!cref[1], cidx);
         cref.clause = Default::default();
     }
 
     pub fn reduce(&mut self) {
-        self.backtrack(0);
-        self.reduces = 0;
-        self.reduce_limit += 512;
-        for l in take(&mut self.clauses.learnt) {
-            if self.clauses[l].lbd >= 5 && self.rand.rand_bool() {
-                self.remove_clause(l);
-            } else {
-                self.clauses.learnt.push(l);
-            }
+        // self.backtrack(0);
+        // self.reduces = 0;
+        // self.reduce_limit += 512;
+        // for l in take(&mut self.clauses.learnt) {
+        //     if self.clauses[l].lbd >= 5 && self.rand.rand_bool() {
+        //         self.remove_clause(l);
+        //     } else {
+        //         self.clauses.learnt.push(l);
+        //     }
+        // }
+        todo!()
+    }
+
+    pub fn remove_temporay(&mut self) {
+        while let Some(tmp) = self.clauses.temporary.pop() {
+            self.remove_clause(tmp);
         }
     }
 
     pub fn verify(&mut self) -> bool {
-        for i in 0..self.clauses.len() {
-            if self.clauses[i].valid()
-                && !self.clauses[i]
-                    .iter()
-                    .any(|l| matches!(self.value[*l], Some(true)))
-            {
-                return false;
-            }
-        }
-        true
+        // for i in 0..self.clauses.len() {
+        //     if !self.clauses[i].removed()
+        //         && !self.clauses[i]
+        //             .iter()
+        //             .any(|l| matches!(self.value[*l], Some(true)))
+        //     {
+        //         return false;
+        //     }
+        // }
+        // true
+        todo!()
     }
 }

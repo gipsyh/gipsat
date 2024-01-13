@@ -1,5 +1,9 @@
-use crate::{utils::VarMap, Solver};
-use logic_form::{Clause, Lit};
+use crate::{
+    clause::{self, Clause, ClauseKind},
+    utils::VarMap,
+    Solver,
+};
+use logic_form::Lit;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -96,14 +100,15 @@ impl Solver {
         true
     }
 
-    fn minimal_learnt(&mut self, learnt: logic_form::Clause) -> Clause {
-        let mut minimal_learnt = Clause::from([learnt[0]]);
-        for l in &learnt[1..] {
-            if !self.lit_redundant(*l) {
-                minimal_learnt.push(*l);
-            }
-        }
-        minimal_learnt
+    fn minimal_learnt(&mut self, learnt: Clause) -> Clause {
+        // let mut minimal_learnt = Clause::from([learnt[0]]);
+        // for l in &learnt[1..] {
+        //     if !self.lit_redundant(*l) {
+        //         minimal_learnt.push(*l);
+        //     }
+        // }
+        // minimal_learnt
+        todo!()
     }
 
     pub fn calculate_lbd(&mut self, learnt: &Clause) -> usize {
@@ -119,13 +124,19 @@ impl Solver {
         lbd
     }
 
-    pub fn analyze(&mut self, mut conflict: usize) -> (Clause, usize) {
-        let mut learnt = Clause::from([Lit::default()]);
+    pub fn analyze(&mut self, mut conflict: usize) -> (clause::Clause, usize) {
+        let mut learnt = Clause::new(
+            logic_form::Clause::from([Lit::default()]),
+            ClauseKind::Learnt,
+        );
         let mut path = 0;
         let mut trail_idx = self.trail.len() - 1;
         let mut resolve_lit = None;
         loop {
             let cref = &self.clauses[conflict];
+            if cref.is_temporary() {
+                learnt.set_kind(ClauseKind::TemporaryLearnt)
+            }
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
             for l in begin..cref.len() {
                 let lit = cref[l];

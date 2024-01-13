@@ -1,5 +1,5 @@
 use crate::Solver;
-use logic_form::Lit;
+use logic_form::{Clause, Lit};
 
 impl Solver {
     #[inline]
@@ -55,6 +55,7 @@ impl Solver {
     // }
 
     pub fn search(&mut self, assumption: &[Lit]) -> bool {
+        let mut assumption = Clause::from(assumption);
         'ml: loop {
             if self.args.verbose {
                 self.print_value();
@@ -70,14 +71,19 @@ impl Solver {
                 if self.args.verbose {
                     dbg!(btl);
                 }
-                let lbd = self.calculate_lbd(&learnt);
-                self.lbd_queue.push(lbd);
+                // let lbd = self.calculate_lbd(&learnt);
+                // self.lbd_queue.push(lbd);
                 self.backtrack(btl);
                 if learnt.len() == 1 {
                     assert!(btl == 0);
-                    self.assign(learnt[0], None);
+                    if learnt.is_temporary() {
+                        // assumption.insert(0, learnt[0]);
+                        assumption.push(learnt[0]);
+                    } else {
+                        self.assign(learnt[0], None);
+                    }
                 } else {
-                    let learnt_idx = self.add_learnt_clause(learnt, lbd);
+                    let learnt_idx = self.attach_clause(learnt);
                     self.assign(self.clauses[learnt_idx][0], Some(learnt_idx));
                 }
                 self.vsids.var_decay();

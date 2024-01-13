@@ -13,7 +13,7 @@ mod vsids;
 pub use command::Args;
 
 use analyze::Analyze;
-use clause::{ClauseDB, LbdQueue};
+use clause::{ClauseDB, ClauseKind, LbdQueue};
 use logic_form::{Clause, Lit, Var};
 use propagate::Watchers;
 use std::fmt::{self, Debug};
@@ -76,29 +76,37 @@ impl Solver {
         self.reason.len()
     }
 
-    pub fn add_clause(&mut self, cls: &[Lit]) {
-        self.backtrack(0);
-        let mut clause = Clause::new();
+    fn simplify_clause(&mut self, cls: &[Lit]) -> Option<logic_form::Clause> {
+        assert!(self.highest_level() == 0);
+        let mut clause = logic_form::Clause::new();
         for l in cls.iter() {
             while self.num_var() <= l.var().into() {
                 self.new_var();
             }
             match self.value[*l] {
-                Some(true) => return,
+                Some(true) => return None,
                 Some(false) => (),
                 None => clause.push(*l),
             }
         }
-        if clause.len() == 0 {
-            todo!()
-        } else if clause.len() == 1 {
+        assert!(!clause.is_empty());
+        Some(clause)
+    }
+
+    pub fn add_clause(&mut self, clause: &[Lit]) {
+        self.reset();
+        let clause = match self.simplify_clause(clause) {
+            Some(clause) => clause,
+            None => return,
+        };
+        if clause.len() == 1 {
             match self.value[clause[0]] {
-                Some(true) => (),
-                Some(false) => panic!(),
                 None => self.assign(clause[0], None),
+                _ => todo!(),
             }
         } else {
-            self.add_origin_clause(clause);
+            let clause = clause::Clause::new(clause, ClauseKind::Origin);
+            self.attach_clause(clause);
         }
     }
 
@@ -106,12 +114,39 @@ impl Solver {
         self.lazy_clauses.push(Clause::from(clause));
     }
 
-    pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
+    pub fn reset(&mut self) {
         self.backtrack(0);
+        self.remove_temporay();
+    }
+
+    pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
+        self.reset();
         while let Some(lc) = self.lazy_clauses.pop() {
             self.add_clause(&lc);
         }
         if self.search(assumption) {
+            SatResult::Sat(Model { solver: self })
+        } else {
+            SatResult::Unsat(Conflict { solver: self })
+        }
+    }
+
+    pub fn solve_with_constrain(&mut self, assumption: &[Lit], constrain: &[Lit]) -> SatResult<'_> {
+        self.reset();
+        let mut assumption = Clause::from(assumption);
+        if let Some(clause) = self.simplify_clause(constrain) {
+            if clause.len() == 1 {
+                // assumption.insert(0, clause[0]);
+                assumption.push(clause[0]);
+            } else {
+                self.attach_clause(clause::Clause::new(
+                    Clause::from(constrain),
+                    ClauseKind::Temporary,
+                ));
+            }
+        }
+        assert!(self.lazy_clauses.is_empty());
+        if self.search(&assumption) {
             SatResult::Sat(Model { solver: self })
         } else {
             SatResult::Unsat(Conflict { solver: self })
