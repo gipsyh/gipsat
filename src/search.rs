@@ -22,19 +22,6 @@ impl Solver {
         self.pos_in_trail.push(self.trail.len())
     }
 
-    #[inline]
-    pub fn decide(&mut self) -> bool {
-        while let Some(decide) = self.vsids.pop() {
-            if self.value[decide.lit()].is_none() {
-                let decide = self.phase_saving[decide].unwrap_or(decide.lit());
-                self.new_level();
-                self.assign(decide, None);
-                return true;
-            }
-        }
-        false
-    }
-
     pub fn backtrack(&mut self, level: usize) {
         if self.highest_level() == level {
             return;
@@ -89,9 +76,9 @@ impl Solver {
                 self.vsids.var_decay();
                 self.reduces += 1;
             } else {
-                if self.reduces > self.reduce_limit {
-                    self.reduce();
-                }
+                // if self.reduces > self.reduce_limit {
+                //     self.reduce();
+                // }
                 while self.highest_level() < assumption.len() {
                     let a = assumption[self.highest_level()];
                     match self.value[a] {

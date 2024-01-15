@@ -64,7 +64,6 @@ impl Solver {
         self.watchers.push(Vec::new());
         let res = Var::new(self.level.len() - 1);
         self.vsids.new_var();
-        self.vsids.push(res);
         self.phase_saving.push(None);
         self.analyze.new_var();
         self.unsat_core.new_var();
@@ -99,6 +98,9 @@ impl Solver {
             Some(clause) => clause,
             None => return,
         };
+        for l in clause.iter() {
+            self.vsids.set_decision(l.var(), true);
+        }
         if clause.len() == 1 {
             match self.value[clause[0]] {
                 None => self.assign(clause[0], None),
@@ -173,8 +175,8 @@ pub struct Model<'a> {
 }
 
 impl Model<'_> {
-    pub fn lit_value(&self, lit: Lit) -> bool {
-        self.solver.value[lit].unwrap()
+    pub fn lit_value(&self, lit: Lit) -> Option<bool> {
+        self.solver.value[lit]
     }
 }
 

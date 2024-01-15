@@ -100,15 +100,18 @@ impl Solver {
         true
     }
 
-    fn minimal_learnt(&mut self, learnt: Clause) -> Clause {
-        // let mut minimal_learnt = Clause::from([learnt[0]]);
-        // for l in &learnt[1..] {
-        //     if !self.lit_redundant(*l) {
-        //         minimal_learnt.push(*l);
-        //     }
-        // }
-        // minimal_learnt
-        todo!()
+    fn minimal_learnt(&mut self, mut learnt: Clause) -> Clause {
+        let mut now = 1;
+        // dbg!(learnt.len());
+        for i in 1..learnt.len() {
+            if !self.lit_redundant(learnt[i]) {
+                learnt[now] = learnt[i];
+                now += 1
+            }
+        }
+        // dbg!(now);
+        learnt.truncate(now);
+        learnt
     }
 
     pub fn calculate_lbd(&mut self, learnt: &Clause) -> usize {

@@ -1,5 +1,5 @@
-use crate::utils::VarMap;
-use logic_form::Var;
+use crate::{utils::VarMap, Solver};
+use logic_form::{Lit, Var};
 use std::ops::MulAssign;
 
 pub struct Vsids {
@@ -7,6 +7,7 @@ pub struct Vsids {
     heap: Vec<Var>,
     pos: VarMap<Option<usize>>,
     var_inc: f64,
+    decison: VarMap<bool>,
 }
 
 impl Default for Vsids {
@@ -16,6 +17,7 @@ impl Default for Vsids {
             heap: Default::default(),
             pos: Default::default(),
             var_inc: 1.0,
+            decison: Default::default(),
         }
     }
 }
@@ -26,6 +28,7 @@ impl Vsids {
     pub fn new_var(&mut self) {
         self.pos.push(None);
         self.activity.push(f64::default());
+        self.decison.push(false);
     }
 
     #[inline]
@@ -95,5 +98,26 @@ impl Vsids {
 
     pub fn var_decay(&mut self) {
         self.var_inc *= 1.0 / Self::VAR_DECAY
+    }
+
+    #[inline]
+    pub fn set_decision(&mut self, var: Var, d: bool) {
+        self.decison[var] = d;
+        self.push(var);
+    }
+}
+
+impl Solver {
+    #[inline]
+    pub fn decide(&mut self) -> bool {
+        while let Some(decide) = self.vsids.pop() {
+            if self.vsids.decison[decide] && self.value[decide.lit()].is_none() {
+                let decide = self.phase_saving[decide].unwrap_or(decide.lit());
+                self.new_level();
+                self.assign(decide, None);
+                return true;
+            }
+        }
+        false
     }
 }
