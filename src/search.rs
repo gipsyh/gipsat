@@ -31,7 +31,7 @@ impl Solver {
             self.value[bt] = None;
             self.value[!bt] = None;
             self.vsids.push(bt.var());
-            // self.phase_saving[bt] = Some(bt);
+            self.phase_saving[bt] = Some(bt);
         }
         self.propagated = self.pos_in_trail[level];
         self.pos_in_trail.truncate(level);
@@ -42,11 +42,9 @@ impl Solver {
     // }
 
     pub fn search(&mut self, assumption: &[Lit]) -> bool {
-        let assumption = Clause::from(assumption);
+        // dbg!(self.clauses.num_learnt());
+        // dbg!(self.clauses.origin.len());
         'ml: loop {
-            if self.args.verbose {
-                self.print_value();
-            }
             if let Some(conflict) = self.propagate() {
                 if self.args.verbose {
                     println!("{:?}", &self.clauses[conflict]);
@@ -58,22 +56,19 @@ impl Solver {
                 if self.args.verbose {
                     dbg!(btl);
                 }
-                // let lbd = self.calculate_lbd(&learnt);
-                // self.lbd_queue.push(lbd);
                 self.backtrack(btl);
                 if learnt.len() == 1 {
                     assert!(btl == 0);
                     self.assign(learnt[0], None);
                 } else {
                     let learnt_idx = self.attach_clause(learnt);
+                    self.clauses.bump(learnt_idx);
                     self.assign(self.clauses[learnt_idx][0], Some(learnt_idx));
                 }
-                self.vsids.var_decay();
-                self.reduces += 1;
+                self.vsids.decay();
+                self.clauses.decay();
             } else {
-                // if self.reduces > self.reduce_limit {
-                //     self.reduce();
-                // }
+                self.reduce();
                 while self.highest_level() < assumption.len() {
                     let a = assumption[self.highest_level()];
                     match self.value[a] {

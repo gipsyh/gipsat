@@ -1,7 +1,7 @@
 use crate::{propagate::Watcher, Solver};
 use std::{
     mem::take,
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut, MulAssign},
 };
 
 #[derive(Debug, Default)]
@@ -16,7 +16,7 @@ pub enum ClauseKind {
 pub struct Clause {
     clause: logic_form::Clause,
     kind: ClauseKind,
-    activity: f64,
+    activity: f32,
 }
 
 impl Clause {
@@ -24,19 +24,19 @@ impl Clause {
         Self {
             clause,
             kind,
-            activity: 0_f64,
+            activity: 0_f32,
         }
     }
 
-    // #[inline]
-    // pub fn is_leanrt(&self) -> bool {
-    //     matches!(self, ClauseKind::Learnt |)
-    // }
+    #[inline]
+    pub fn is_leanrt(&self) -> bool {
+        matches!(self.kind, ClauseKind::Learnt)
+    }
 
-    // #[inline]
-    // pub fn is_valid(&self) -> bool {
-    //     !self.kind.contains(ClauseKind::Removed)
-    // }
+    #[inline]
+    pub fn is_valid(&self) -> bool {
+        !matches!(self.kind, ClauseKind::Removed)
+    }
 }
 
 impl Deref for Clause {
@@ -54,15 +54,55 @@ impl DerefMut for Clause {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct ClauseDB {
     clauses: Vec<Clause>,
     origin: Vec<usize>,
     learnt: Vec<usize>,
+    act_inc: f32,
 }
 
 impl ClauseDB {
     pub fn new_var(&mut self) {}
+
+    #[inline]
+    pub fn num_learnt(&self) -> usize {
+        self.learnt.len()
+    }
+
+    #[inline]
+    pub fn bump(&mut self, cid: usize) {
+        if !self.clauses[cid].is_leanrt() {
+            return;
+        }
+        self.clauses[cid].activity += self.act_inc;
+        if self.clauses[cid].activity > 1e20 {
+            for l in self.learnt.iter() {
+                if self.clauses[*l].is_valid() {
+                    self.clauses[*l].activity.mul_assign(1e-20);
+                }
+            }
+            self.act_inc *= 1e-20;
+        }
+    }
+
+    const DECAY: f32 = 0.999;
+
+    #[inline]
+    pub fn decay(&mut self) {
+        self.act_inc *= 1.0 / Self::DECAY
+    }
+}
+
+impl Default for ClauseDB {
+    fn default() -> Self {
+        Self {
+            clauses: Default::default(),
+            origin: Default::default(),
+            learnt: Default::default(),
+            act_inc: 1.0,
+        }
+    }
 }
 
 impl Deref for ClauseDB {
@@ -110,18 +150,28 @@ impl Solver {
         self.watchers.remove(!clause[1], cidx);
     }
 
+    fn locked(&self, cls: &Clause) -> bool {
+        matches!(self.value[cls[0]], Some(true)) && self.reason[cls[0]].is_some()
+    }
+
     pub fn reduce(&mut self) {
-        // self.backtrack(0);
-        // self.reduces = 0;
-        // self.reduce_limit += 512;
+        // if self.clauses.learnt.len() < self.trail.len() {
+        //     return;
+        // }
+        // if self.clauses.learnt.len() - self.trail.len() < 10000 {
+        //     return;
+        // }
+        // dbg!(self.clauses.learnt.len());
+        // let limit = self.clauses.act_inc / self.clauses.learnt.len() as f32;
         // for l in take(&mut self.clauses.learnt) {
-        //     if self.clauses[l].lbd >= 5 && self.rand.rand_bool() {
+        //     let cls = &self.clauses[l];
+        //     if !self.locked(cls) && cls.len() > 2 && cls.activity < limit {
         //         self.remove_clause(l);
         //     } else {
         //         self.clauses.learnt.push(l);
         //     }
         // }
-        todo!()
+        // dbg!(self.clauses.learnt.len());
     }
 
     pub fn verify(&mut self) -> bool {

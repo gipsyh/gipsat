@@ -6,7 +6,7 @@ pub struct Vsids {
     activity: VarMap<f64>,
     heap: Vec<Var>,
     pos: VarMap<Option<usize>>,
-    var_inc: f64,
+    act_inc: f64,
     decison: VarMap<bool>,
 }
 
@@ -16,15 +16,13 @@ impl Default for Vsids {
             activity: Default::default(),
             heap: Default::default(),
             pos: Default::default(),
-            var_inc: 1.0,
+            act_inc: 1.0,
             decison: Default::default(),
         }
     }
 }
 
 impl Vsids {
-    const VAR_DECAY: f64 = 0.95;
-
     pub fn new_var(&mut self) {
         self.pos.push(None);
         self.activity.push(f64::default());
@@ -85,19 +83,21 @@ impl Vsids {
         value
     }
 
-    pub fn var_bump(&mut self, var: Var) {
-        self.activity[var] += self.var_inc;
+    pub fn bump(&mut self, var: Var) {
+        self.activity[var] += self.act_inc;
         if self.activity[var] > 1e100 {
             self.activity.iter_mut().for_each(|a| a.mul_assign(1e-100));
-            self.var_inc *= 1e-100;
+            self.act_inc *= 1e-100;
         }
         if let Some(pos) = self.pos[var] {
             self.up(pos)
         }
     }
 
-    pub fn var_decay(&mut self) {
-        self.var_inc *= 1.0 / Self::VAR_DECAY
+    const DECAY: f64 = 0.95;
+
+    pub fn decay(&mut self) {
+        self.act_inc *= 1.0 / Self::DECAY
     }
 
     #[inline]

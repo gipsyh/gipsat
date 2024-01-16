@@ -35,8 +35,6 @@ pub struct Solver {
     phase_saving: VarMap<Option<Lit>>,
     analyze: Analyze,
     rand: Rand,
-    reduces: usize,
-    reduce_limit: usize,
     unsat_core: LitSet,
 
     lazy_clauses: Vec<Clause>,
@@ -44,11 +42,9 @@ pub struct Solver {
 
 impl Solver {
     pub fn new() -> Self {
-        let mut ret = Self {
-            reduce_limit: 8192,
+        Self {
             ..Default::default()
-        };
-        ret
+        }
     }
 
     pub fn set_args(&mut self, args: Args) {
