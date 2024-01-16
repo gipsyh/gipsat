@@ -137,9 +137,6 @@ impl Solver {
         let mut resolve_lit = None;
         loop {
             let cref = &self.clauses[conflict];
-            if cref.is_temporary() {
-                learnt.set_kind(ClauseKind::TemporaryLearnt)
-            }
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
             for l in begin..cref.len() {
                 let lit = cref[l];

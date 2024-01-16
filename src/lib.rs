@@ -13,7 +13,7 @@ mod vsids;
 pub use command::Args;
 
 use analyze::Analyze;
-use clause::{ClauseDB, ClauseKind, LbdQueue};
+use clause::{ClauseDB, ClauseKind};
 use logic_form::{Clause, Lit, Var};
 use propagate::Watchers;
 use std::fmt::{self, Debug};
@@ -33,22 +33,24 @@ pub struct Solver {
     propagated: usize,
     vsids: Vsids,
     phase_saving: VarMap<Option<Lit>>,
-    lbd_queue: LbdQueue,
     analyze: Analyze,
     rand: Rand,
     reduces: usize,
     reduce_limit: usize,
     unsat_core: LitSet,
 
+    temproary_act: Lit,
     lazy_clauses: Vec<Clause>,
 }
 
 impl Solver {
     pub fn new() -> Self {
-        Self {
+        let mut ret = Self {
             reduce_limit: 8192,
             ..Default::default()
-        }
+        };
+        ret.temproary_act = ret.new_var().lit();
+        ret
     }
 
     pub fn set_args(&mut self, args: Args) {
@@ -67,6 +69,7 @@ impl Solver {
         self.phase_saving.push(None);
         self.analyze.new_var();
         self.unsat_core.new_var();
+        self.clauses.new_var();
         res
     }
 
@@ -118,7 +121,7 @@ impl Solver {
 
     pub fn reset(&mut self) {
         self.backtrack(0);
-        self.remove_temporay();
+        self.clean_temproary();
     }
 
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
@@ -138,13 +141,12 @@ impl Solver {
         let mut assumption = Clause::from(assumption);
         if let Some(clause) = self.simplify_clause(constrain) {
             if clause.len() == 1 {
-                // assumption.insert(0, clause[0]);
                 assumption.push(clause[0]);
             } else {
-                self.attach_clause(clause::Clause::new(
-                    Clause::from(constrain),
-                    ClauseKind::Temporary,
-                ));
+                let mut constrain = Clause::from(constrain);
+                constrain.push(!self.temproary_act);
+                self.attach_clause(clause::Clause::new(constrain, ClauseKind::Learnt));
+                assumption.push(self.temproary_act);
             }
         }
         assert!(self.lazy_clauses.is_empty());

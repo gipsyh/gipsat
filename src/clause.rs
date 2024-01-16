@@ -1,16 +1,19 @@
-use crate::{propagate::Watcher, Solver};
-use std::ops::{Deref, DerefMut};
+use crate::{propagate::Watcher, utils::LitMap, Solver};
+use std::{
+    collections::HashSet,
+    mem::take,
+    ops::{Deref, DerefMut},
+};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum ClauseKind {
     Origin,
     Learnt,
-    Temporary,
-    TemporaryLearnt,
+    #[default]
     Removed,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Clause {
     clause: logic_form::Clause,
     kind: ClauseKind,
@@ -25,19 +28,6 @@ impl Clause {
     // pub fn is_leanrt(&self) -> bool {
     //     matches!(self, ClauseKind::Learnt |)
     // }
-
-    #[inline]
-    pub fn is_temporary(&self) -> bool {
-        matches!(
-            self.kind,
-            ClauseKind::Temporary | ClauseKind::TemporaryLearnt
-        )
-    }
-
-    #[inline]
-    pub fn set_kind(&mut self, kind: ClauseKind) {
-        self.kind = kind
-    }
 
     // #[inline]
     // pub fn is_valid(&self) -> bool {
@@ -60,54 +50,19 @@ impl DerefMut for Clause {
     }
 }
 
-pub struct LbdQueue {
-    queue: [usize; 50],
-    full: bool,
-    pos: usize,
-    fast_sum: usize,
-    slow_sum: usize,
-}
-
-impl LbdQueue {
-    pub fn restart(&self, conflicts: usize) -> bool {
-        self.full && 0.8 * self.fast_sum as f32 / 50.0 > self.slow_sum as f32 / conflicts as f32
-    }
-
-    pub fn push(&mut self, lbd: usize) {
-        if self.full {
-            self.fast_sum -= self.queue[self.pos];
-        } else if self.pos == 49 {
-            self.full = true;
-        }
-        self.fast_sum += lbd;
-        self.queue[self.pos] = lbd;
-        self.pos += 1;
-        if self.pos == 50 {
-            self.pos = 0;
-        }
-        self.pos = (self.pos + 1) / 50;
-        self.slow_sum += lbd.min(50);
-    }
-}
-
-impl Default for LbdQueue {
-    fn default() -> Self {
-        Self {
-            queue: [0; 50],
-            full: false,
-            pos: 0,
-            fast_sum: 0,
-            slow_sum: 0,
-        }
-    }
-}
-
 #[derive(Default, Debug)]
 pub struct ClauseDB {
     clauses: Vec<Clause>,
     origin: Vec<usize>,
     learnt: Vec<usize>,
-    temporary: Vec<usize>,
+    clsref: LitMap<HashSet<usize>>,
+}
+
+impl ClauseDB {
+    pub fn new_var(&mut self) {
+        self.clsref.push(Default::default());
+        self.clsref.push(Default::default());
+    }
 }
 
 impl Deref for ClauseDB {
@@ -143,23 +98,35 @@ impl Solver {
         match clause.kind {
             ClauseKind::Origin => self.clauses.origin.push(id),
             ClauseKind::Learnt => self.clauses.learnt.push(id),
-            ClauseKind::Temporary => self.clauses.temporary.push(id),
-            ClauseKind::TemporaryLearnt => {
-                self.clauses.learnt.push(id);
-                self.clauses.temporary.push(id);
-            }
             _ => todo!(),
+        }
+        for l in clause.iter() {
+            self.clauses.clsref[*l].insert(id);
         }
         self.clauses.clauses.push(clause);
         id
     }
 
     fn remove_clause(&mut self, cidx: usize) {
-        let cref = &mut self.clauses[cidx];
-        cref.kind = ClauseKind::Removed;
-        self.watchers.remove(!cref[0], cidx);
-        self.watchers.remove(!cref[1], cidx);
-        cref.clause = Default::default();
+        let clause = take(&mut self.clauses[cidx]);
+        self.watchers.remove(!clause[0], cidx);
+        self.watchers.remove(!clause[1], cidx);
+        for l in clause.iter() {
+            self.clauses.clsref[*l].remove(&cidx);
+        }
+    }
+
+    pub fn clean_temproary(&mut self) {
+        assert!(self.clauses.clsref[self.temproary_act].is_empty());
+        if !self.clauses.clsref[!self.temproary_act].is_empty() {
+            let temproary: Vec<usize> = self.clauses.clsref[!self.temproary_act]
+                .iter()
+                .copied()
+                .collect();
+            for cidx in temproary {
+                self.remove_clause(cidx);
+            }
+        }
     }
 
     pub fn reduce(&mut self) {
@@ -174,12 +141,6 @@ impl Solver {
         //     }
         // }
         todo!()
-    }
-
-    pub fn remove_temporay(&mut self) {
-        while let Some(tmp) = self.clauses.temporary.pop() {
-            self.remove_clause(tmp);
-        }
     }
 
     pub fn verify(&mut self) -> bool {

@@ -1,5 +1,5 @@
 use crate::{utils::VarMap, Solver};
-use logic_form::{Lit, Var};
+use logic_form::Var;
 use std::ops::MulAssign;
 
 pub struct Vsids {
@@ -111,7 +111,7 @@ impl Solver {
     #[inline]
     pub fn decide(&mut self) -> bool {
         while let Some(decide) = self.vsids.pop() {
-            if self.vsids.decison[decide] && self.value[decide.lit()].is_none() {
+            if self.value[decide.lit()].is_none() {
                 let decide = self.phase_saving[decide].unwrap_or(decide.lit());
                 self.new_level();
                 self.assign(decide, None);

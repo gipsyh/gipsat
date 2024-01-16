@@ -42,7 +42,7 @@ impl Solver {
     // }
 
     pub fn search(&mut self, assumption: &[Lit]) -> bool {
-        let mut assumption = Clause::from(assumption);
+        let assumption = Clause::from(assumption);
         'ml: loop {
             if self.args.verbose {
                 self.print_value();
@@ -63,12 +63,7 @@ impl Solver {
                 self.backtrack(btl);
                 if learnt.len() == 1 {
                     assert!(btl == 0);
-                    if learnt.is_temporary() {
-                        // assumption.insert(0, learnt[0]);
-                        assumption.push(learnt[0]);
-                    } else {
-                        self.assign(learnt[0], None);
-                    }
+                    self.assign(learnt[0], None);
                 } else {
                     let learnt_idx = self.attach_clause(learnt);
                     self.assign(self.clauses[learnt_idx][0], Some(learnt_idx));
