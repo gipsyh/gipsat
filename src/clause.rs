@@ -1,6 +1,5 @@
-use crate::{propagate::Watcher, utils::LitMap, Solver};
+use crate::{propagate::Watcher, Solver};
 use std::{
-    collections::HashSet,
     mem::take,
     ops::{Deref, DerefMut},
 };
@@ -17,11 +16,16 @@ pub enum ClauseKind {
 pub struct Clause {
     clause: logic_form::Clause,
     kind: ClauseKind,
+    activity: f64,
 }
 
 impl Clause {
     pub fn new(clause: logic_form::Clause, kind: ClauseKind) -> Self {
-        Self { clause, kind }
+        Self {
+            clause,
+            kind,
+            activity: 0_f64,
+        }
     }
 
     // #[inline]
@@ -55,14 +59,10 @@ pub struct ClauseDB {
     clauses: Vec<Clause>,
     origin: Vec<usize>,
     learnt: Vec<usize>,
-    clsref: LitMap<HashSet<usize>>,
 }
 
 impl ClauseDB {
-    pub fn new_var(&mut self) {
-        self.clsref.push(Default::default());
-        self.clsref.push(Default::default());
-    }
+    pub fn new_var(&mut self) {}
 }
 
 impl Deref for ClauseDB {
@@ -100,9 +100,6 @@ impl Solver {
             ClauseKind::Learnt => self.clauses.learnt.push(id),
             _ => todo!(),
         }
-        for l in clause.iter() {
-            self.clauses.clsref[*l].insert(id);
-        }
         self.clauses.clauses.push(clause);
         id
     }
@@ -111,22 +108,6 @@ impl Solver {
         let clause = take(&mut self.clauses[cidx]);
         self.watchers.remove(!clause[0], cidx);
         self.watchers.remove(!clause[1], cidx);
-        for l in clause.iter() {
-            self.clauses.clsref[*l].remove(&cidx);
-        }
-    }
-
-    pub fn clean_temproary(&mut self) {
-        assert!(self.clauses.clsref[self.temproary_act].is_empty());
-        if !self.clauses.clsref[!self.temproary_act].is_empty() {
-            let temproary: Vec<usize> = self.clauses.clsref[!self.temproary_act]
-                .iter()
-                .copied()
-                .collect();
-            for cidx in temproary {
-                self.remove_clause(cidx);
-            }
-        }
     }
 
     pub fn reduce(&mut self) {

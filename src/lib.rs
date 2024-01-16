@@ -39,7 +39,6 @@ pub struct Solver {
     reduce_limit: usize,
     unsat_core: LitSet,
 
-    temproary_act: Lit,
     lazy_clauses: Vec<Clause>,
 }
 
@@ -49,7 +48,6 @@ impl Solver {
             reduce_limit: 8192,
             ..Default::default()
         };
-        ret.temproary_act = ret.new_var().lit();
         ret
     }
 
@@ -121,7 +119,7 @@ impl Solver {
 
     pub fn reset(&mut self) {
         self.backtrack(0);
-        self.clean_temproary();
+        // self.clean_temproary();
     }
 
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
@@ -137,16 +135,16 @@ impl Solver {
     }
 
     pub fn solve_with_constrain(&mut self, assumption: &[Lit], constrain: &[Lit]) -> SatResult<'_> {
+        todo!();
         self.reset();
         let mut assumption = Clause::from(assumption);
         if let Some(clause) = self.simplify_clause(constrain) {
             if clause.len() == 1 {
                 assumption.push(clause[0]);
             } else {
+                todo!();
                 let mut constrain = Clause::from(constrain);
-                constrain.push(!self.temproary_act);
                 self.attach_clause(clause::Clause::new(constrain, ClauseKind::Learnt));
-                assumption.push(self.temproary_act);
             }
         }
         assert!(self.lazy_clauses.is_empty());
