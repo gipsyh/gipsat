@@ -1,5 +1,5 @@
-use crate::{utils::VarMap, Solver};
-use logic_form::Var;
+use crate::Solver;
+use logic_form::{Var, VarMap};
 use std::ops::MulAssign;
 
 pub struct Vsids {
@@ -7,7 +7,6 @@ pub struct Vsids {
     heap: Vec<Var>,
     pos: VarMap<Option<usize>>,
     act_inc: f64,
-    decison: VarMap<bool>,
 }
 
 impl Default for Vsids {
@@ -17,7 +16,6 @@ impl Default for Vsids {
             heap: Default::default(),
             pos: Default::default(),
             act_inc: 1.0,
-            decison: Default::default(),
         }
     }
 }
@@ -26,7 +24,13 @@ impl Vsids {
     pub fn new_var(&mut self) {
         self.pos.push(None);
         self.activity.push(f64::default());
-        self.decison.push(false);
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        while let Some(v) = self.heap.pop() {
+            self.pos[v] = None;
+        }
     }
 
     #[inline]
@@ -99,12 +103,6 @@ impl Vsids {
     pub fn decay(&mut self) {
         self.act_inc *= 1.0 / Self::DECAY
     }
-
-    #[inline]
-    pub fn set_decision(&mut self, var: Var, d: bool) {
-        self.decison[var] = d;
-        self.push(var);
-    }
 }
 
 impl Solver {
@@ -113,7 +111,7 @@ impl Solver {
         while let Some(decide) = self.vsids.pop() {
             if self.value[decide.lit()].is_none() {
                 let decide = self.phase_saving[decide].unwrap_or(decide.lit());
-                self.new_level();
+                self.pos_in_trail.push(self.trail.len());
                 self.assign(decide, None);
                 return true;
             }

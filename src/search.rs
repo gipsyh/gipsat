@@ -1,5 +1,5 @@
 use crate::Solver;
-use logic_form::{Clause, Lit};
+use logic_form::Lit;
 
 impl Solver {
     #[inline]
@@ -18,11 +18,11 @@ impl Solver {
     }
 
     #[inline]
-    pub fn new_level(&mut self) {
+    fn new_level(&mut self) {
         self.pos_in_trail.push(self.trail.len())
     }
 
-    pub fn backtrack(&mut self, level: usize) {
+    fn backtrack(&mut self, level: usize) {
         if self.highest_level() == level {
             return;
         }
@@ -37,13 +37,7 @@ impl Solver {
         self.pos_in_trail.truncate(level);
     }
 
-    // pub fn restart(&mut self) {
-
-    // }
-
     pub fn search(&mut self, assumption: &[Lit]) -> bool {
-        // dbg!(self.clauses.num_learnt());
-        // dbg!(self.clauses.origin.len());
         'ml: loop {
             if let Some(conflict) = self.propagate() {
                 if self.args.verbose {

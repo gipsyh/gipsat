@@ -1,142 +1,56 @@
-use logic_form::{Lit, Var};
-use rand::{rngs::StdRng, Rng, SeedableRng};
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use logic_form::{Var, VarMap};
 
-#[derive(Debug, Default)]
-pub struct VarMap<T> {
-    map: Vec<T>,
+pub struct Mark {
+    timestamp: usize,
+    marks: VarMap<usize>,
+    marked: Vec<Var>,
 }
 
-impl<T> Index<Var> for VarMap<T> {
-    type Output = T;
+impl Mark {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     #[inline]
-    fn index(&self, index: Var) -> &Self::Output {
-        &self.map[Into::<usize>::into(index)]
-    }
-}
-
-impl<T> IndexMut<Var> for VarMap<T> {
-    #[inline]
-    fn index_mut(&mut self, index: Var) -> &mut Self::Output {
-        &mut self.map[Into::<usize>::into(index)]
-    }
-}
-
-impl<T> Index<Lit> for VarMap<T> {
-    type Output = T;
-
-    #[inline]
-    fn index(&self, index: Lit) -> &Self::Output {
-        &self.map[Into::<usize>::into(index.var())]
-    }
-}
-
-impl<T> IndexMut<Lit> for VarMap<T> {
-    #[inline]
-    fn index_mut(&mut self, index: Lit) -> &mut Self::Output {
-        &mut self.map[Into::<usize>::into(index.var())]
-    }
-}
-
-impl<T> Deref for VarMap<T> {
-    type Target = Vec<T>;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.map
-    }
-}
-
-impl<T> DerefMut for VarMap<T> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.map
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct LitMap<T> {
-    map: Vec<T>,
-}
-
-impl<T> Index<Lit> for LitMap<T> {
-    type Output = T;
-
-    #[inline]
-    fn index(&self, index: Lit) -> &Self::Output {
-        &self.map[Into::<usize>::into(index)]
-    }
-}
-
-impl<T> IndexMut<Lit> for LitMap<T> {
-    #[inline]
-    fn index_mut(&mut self, index: Lit) -> &mut Self::Output {
-        &mut self.map[Into::<usize>::into(index)]
-    }
-}
-
-impl<T> Deref for LitMap<T> {
-    type Target = Vec<T>;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.map
-    }
-}
-
-impl<T> DerefMut for LitMap<T> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.map
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct LitSet {
-    set: Vec<Lit>,
-    has: LitMap<bool>,
-}
-
-impl LitSet {
     pub fn new_var(&mut self) {
-        self.has.push(false);
-        self.has.push(false);
+        self.marks.push(0);
     }
 
-    pub fn insert(&mut self, lit: Lit) {
-        if !self.has[lit] {
-            self.set.push(lit);
-            self.has[lit] = true;
+    #[inline]
+    pub fn num_marked(&self) -> usize {
+        self.marked.len()
+    }
+
+    #[inline]
+    pub fn is_marked<V: Into<Var>>(&self, var: V) -> bool {
+        self.marks[var.into()] == self.timestamp
+    }
+
+    #[inline]
+    pub fn mark(&mut self, var: Var) {
+        if !self.is_marked(var) {
+            self.marks[var] = self.timestamp;
+            self.marked.push(var);
         }
     }
 
-    pub fn has(&self, lit: Lit) -> bool {
-        self.has[lit]
+    #[inline]
+    pub fn clean_all(&mut self) {
+        self.timestamp += 1;
+        self.marked.clear();
     }
 
-    pub fn clear(&mut self) {
-        for l in self.set.iter() {
-            self.has[*l] = false;
-        }
-        self.set.clear();
-    }
-}
-
-pub struct Rand {
-    rng: StdRng,
-}
-
-impl Rand {
-    pub fn rand_bool(&mut self) -> bool {
-        self.rng.gen_bool(0.5)
+    pub fn marks(&self) -> impl Iterator<Item = &Var> {
+        self.marked.iter()
     }
 }
 
-impl Default for Rand {
+impl Default for Mark {
     fn default() -> Self {
         Self {
-            rng: StdRng::seed_from_u64(0),
+            timestamp: 1,
+            marks: Default::default(),
+            marked: Default::default(),
         }
     }
 }

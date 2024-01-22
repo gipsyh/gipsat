@@ -1,6 +1,7 @@
 mod analyze;
 mod clause;
 mod command;
+mod domain;
 mod others;
 mod propagate;
 mod search;
@@ -14,10 +15,10 @@ pub use command::Args;
 
 use analyze::Analyze;
 use clause::{ClauseDB, ClauseKind};
-use logic_form::{Clause, Lit, Var};
+use domain::Domain;
+use logic_form::{Clause, Lit, LitMap, LitSet, Var, VarMap};
 use propagate::Watchers;
 use std::fmt::{self, Debug};
-use utils::{LitMap, LitSet, Rand, VarMap};
 use vsids::Vsids;
 
 #[derive(Default)]
@@ -34,17 +35,15 @@ pub struct Solver {
     vsids: Vsids,
     phase_saving: VarMap<Option<Lit>>,
     analyze: Analyze,
-    rand: Rand,
     unsat_core: LitSet,
 
+    domain: Domain,
     lazy_clauses: Vec<Clause>,
 }
 
 impl Solver {
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 
     pub fn set_args(&mut self, args: Args) {
@@ -64,6 +63,7 @@ impl Solver {
         self.analyze.new_var();
         self.unsat_core.new_var();
         self.clauses.new_var();
+        self.domain.new_var();
         res
     }
 
@@ -89,14 +89,13 @@ impl Solver {
         Some(clause)
     }
 
-    pub fn add_clause(&mut self, clause: &[Lit]) {
-        self.reset();
+    pub fn add_clause_inner(&mut self, clause: &[Lit]) {
         let clause = match self.simplify_clause(clause) {
             Some(clause) => clause,
             None => return,
         };
         for l in clause.iter() {
-            self.vsids.set_decision(l.var(), true);
+            self.domain.global.mark(l.var());
         }
         if clause.len() == 1 {
             match self.value[clause[0]] {
@@ -109,20 +108,41 @@ impl Solver {
         }
     }
 
-    pub fn add_lazy_clause(&mut self, clause: &[Lit]) {
+    pub fn add_clause(&mut self, clause: &[Lit]) {
         self.lazy_clauses.push(Clause::from(clause));
     }
 
-    pub fn reset(&mut self) {
-        self.backtrack(0);
-        // self.clean_temproary();
+    fn new_round(&mut self, domain: Option<&[Var]>) {
+        self.domain.disable_local();
+        if !self.pos_in_trail.is_empty() {
+            while self.trail.len() > self.pos_in_trail[0] {
+                let bt = self.trail.pop().unwrap();
+                self.value[bt] = None;
+                self.value[!bt] = None;
+                self.phase_saving[bt] = Some(bt);
+            }
+            self.propagated = self.pos_in_trail[0];
+            self.pos_in_trail.truncate(0);
+        }
+
+        while let Some(lc) = self.lazy_clauses.pop() {
+            self.add_clause_inner(&lc);
+        }
+
+        if let Some(domain) = domain {
+            self.domain.enable_local(domain);
+        }
+
+        self.vsids.clear();
+        for d in self.domain.domains() {
+            if self.value[d.lit()].is_none() {
+                self.vsids.push(*d);
+            }
+        }
     }
 
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
-        self.reset();
-        while let Some(lc) = self.lazy_clauses.pop() {
-            self.add_clause(&lc);
-        }
+        self.new_round(None);
         if self.search(assumption) {
             SatResult::Sat(Model { solver: self })
         } else {
@@ -130,25 +150,38 @@ impl Solver {
         }
     }
 
-    pub fn solve_with_constrain(&mut self, assumption: &[Lit], constrain: &[Lit]) -> SatResult<'_> {
-        todo!();
-        self.reset();
-        let mut assumption = Clause::from(assumption);
-        if let Some(clause) = self.simplify_clause(constrain) {
-            if clause.len() == 1 {
-                assumption.push(clause[0]);
-            } else {
-                todo!();
-                let mut constrain = Clause::from(constrain);
-                self.attach_clause(clause::Clause::new(constrain, ClauseKind::Learnt));
-            }
-        }
-        assert!(self.lazy_clauses.is_empty());
-        if self.search(&assumption) {
+    pub fn solve_with_domain(&mut self, assumption: &[Lit], domain: &[Var]) -> SatResult<'_> {
+        // dbg!(domain.len());
+        // dbg!(self.domain.global.num_marked());
+        self.new_round(Some(domain));
+        if self.search(assumption) {
+            // dbg!(self.trail.len());
             SatResult::Sat(Model { solver: self })
         } else {
+            // dbg!(self.trail.len());
             SatResult::Unsat(Conflict { solver: self })
         }
+    }
+
+    pub fn solve_with_constrain(&mut self, assumption: &[Lit], constrain: &[Lit]) -> SatResult<'_> {
+        todo!();
+        // self.reset();
+        // let mut assumption = Clause::from(assumption);
+        // if let Some(clause) = self.simplify_clause(constrain) {
+        //     if clause.len() == 1 {
+        //         assumption.push(clause[0]);
+        //     } else {
+        //         todo!();
+        //         let mut constrain = Clause::from(constrain);
+        //         self.attach_clause(clause::Clause::new(constrain, ClauseKind::Learnt));
+        //     }
+        // }
+        // assert!(self.lazy_clauses.is_empty());
+        // if self.search(&assumption) {
+        //     SatResult::Sat(Model { solver: self })
+        // } else {
+        //     SatResult::Unsat(Conflict { solver: self })
+        // }
     }
 
     /// # Safety

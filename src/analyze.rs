@@ -1,9 +1,8 @@
 use crate::{
     clause::{self, Clause, ClauseKind},
-    utils::VarMap,
     Solver,
 };
-use logic_form::Lit;
+use logic_form::{Lit, VarMap};
 use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug, Default)]

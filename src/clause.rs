@@ -187,4 +187,9 @@ impl Solver {
         // true
         todo!()
     }
+
+    pub fn remove_satisfied(&mut self) {
+        // assert!(self.highest_level() == 0);
+        // for l in self.clauses.learnt
+    }
 }

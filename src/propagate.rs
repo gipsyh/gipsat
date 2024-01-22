@@ -1,5 +1,5 @@
-use crate::{utils::LitMap, Solver};
-use logic_form::Lit;
+use crate::Solver;
+use logic_form::{Lit, LitMap};
 use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug)]
@@ -49,7 +49,10 @@ impl Solver {
             let mut new = 0;
             for w in 0..self.watchers[p].len() {
                 let watchers = &mut self.watchers[p];
-                if let Some(true) = self.value[watchers[w].blocker] {
+                let blocker = watchers[w].blocker;
+                if (!self.domain.has(blocker) && !matches!(self.value[blocker], Some(false)))
+                    || matches!(self.value[blocker], Some(true))
+                {
                     watchers[new] = watchers[w];
                     new += 1;
                     continue;
@@ -61,7 +64,9 @@ impl Solver {
                 }
                 assert!(cref[1] == !p);
                 let new_watcher = Watcher::new(cid, cref[0]);
-                if let Some(true) = self.value[cref[0]] {
+                if (!self.domain.has(cref[0]) && !matches!(self.value[cref[0]], Some(false)))
+                    || matches!(self.value[cref[0]], Some(true))
+                {
                     watchers[new] = new_watcher;
                     new += 1;
                     continue;
@@ -83,8 +88,10 @@ impl Solver {
                         watchers.truncate(new);
                         return Some(cid);
                     } else {
-                        let assign = cref[0];
-                        self.assign(assign, Some(cid));
+                        if self.domain.has(cref[0]) {
+                            let assign = cref[0];
+                            self.assign(assign, Some(cid));
+                        }
                     }
                 }
             }
