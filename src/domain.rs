@@ -1,4 +1,4 @@
-use crate::utils::Mark;
+use crate::{ts::TransitionSystem, utils::Mark};
 use logic_form::Var;
 
 #[derive(Default)]
@@ -14,13 +14,9 @@ impl Domain {
         self.local.new_var();
     }
 
-    pub fn enable_local(&mut self, domain: &[Var]) {
-        self.local.clean_all();
-        for v in domain.iter() {
-            if self.global.is_marked(*v) {
-                self.local.mark(*v);
-            }
-        }
+    pub fn enable_local(&mut self, domain: impl Iterator<Item = Var>, ts: &TransitionSystem) {
+        self.local.clean();
+        ts.get_coi(domain, &mut self.local, &self.global);
         self.enable_local = true;
     }
 

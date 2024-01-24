@@ -6,8 +6,10 @@ mod others;
 mod propagate;
 mod search;
 mod simplify;
+mod statistic;
 #[cfg(test)]
 mod tests;
+mod ts;
 mod utils;
 mod vsids;
 
@@ -18,7 +20,9 @@ use clause::{ClauseDB, ClauseKind};
 use domain::Domain;
 use logic_form::{Clause, Lit, LitMap, LitSet, Var, VarMap};
 use propagate::Watchers;
+use statistic::Statistic;
 use std::fmt::{self, Debug};
+use ts::TransitionSystem;
 use vsids::Vsids;
 
 #[derive(Default)]
@@ -39,6 +43,10 @@ pub struct Solver {
 
     domain: Domain,
     lazy_clauses: Vec<Clause>,
+
+    ts: Option<TransitionSystem>,
+
+    statistic: Statistic,
 }
 
 impl Solver {
@@ -48,6 +56,10 @@ impl Solver {
 
     pub fn set_args(&mut self, args: Args) {
         self.args = args
+    }
+
+    pub fn set_ts(&mut self, dep: VarMap<Vec<Var>>) {
+        self.ts = Some(TransitionSystem::new(dep))
     }
 
     pub fn new_var(&mut self) -> Var {
@@ -112,7 +124,7 @@ impl Solver {
         self.lazy_clauses.push(Clause::from(clause));
     }
 
-    fn new_round(&mut self, domain: Option<&[Var]>) {
+    fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>) {
         self.domain.disable_local();
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
@@ -130,7 +142,7 @@ impl Solver {
         }
 
         if let Some(domain) = domain {
-            self.domain.enable_local(domain);
+            self.domain.enable_local(domain, self.ts.as_ref().unwrap());
         }
 
         self.vsids.clear();
@@ -142,7 +154,11 @@ impl Solver {
     }
 
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
-        self.new_round(None);
+        self.new_round(None::<std::option::IntoIter<Var>>);
+        self.statistic.num_solve += 1;
+        if self.statistic.num_solve % 100 == 0 {
+            self.simplify();
+        }
         if self.search(assumption) {
             SatResult::Sat(Model { solver: self })
         } else {
@@ -150,15 +166,19 @@ impl Solver {
         }
     }
 
-    pub fn solve_with_domain(&mut self, assumption: &[Lit], domain: &[Var]) -> SatResult<'_> {
-        // dbg!(domain.len());
-        // dbg!(self.domain.global.num_marked());
+    pub fn solve_with_domain(
+        &mut self,
+        assumption: &[Lit],
+        domain: impl Iterator<Item = Var>,
+    ) -> SatResult<'_> {
         self.new_round(Some(domain));
+        self.statistic.num_solve += 1;
+        if self.statistic.num_solve % 100 == 0 {
+            self.simplify();
+        }
         if self.search(assumption) {
-            // dbg!(self.trail.len());
             SatResult::Sat(Model { solver: self })
         } else {
-            // dbg!(self.trail.len());
             SatResult::Unsat(Conflict { solver: self })
         }
     }

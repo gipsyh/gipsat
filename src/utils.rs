@@ -35,7 +35,14 @@ impl Mark {
     }
 
     #[inline]
-    pub fn clean_all(&mut self) {
+    pub fn weak_mark(&mut self, var: Var) {
+        if !self.is_marked(var) {
+            self.marks[var] = self.timestamp;
+        }
+    }
+
+    #[inline]
+    pub fn clean(&mut self) {
         self.timestamp += 1;
         self.marked.clear();
     }

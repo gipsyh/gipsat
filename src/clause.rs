@@ -121,7 +121,8 @@ impl DerefMut for ClauseDB {
 }
 
 impl Solver {
-    pub fn satisfied(&self, cls: usize) -> bool {
+    #[inline]
+    pub fn clause_satisfied(&self, cls: usize) -> bool {
         for l in self.clauses[cls].iter() {
             if let Some(true) = self.value[*l] {
                 return true;
@@ -188,8 +189,44 @@ impl Solver {
         todo!()
     }
 
-    pub fn remove_satisfied(&mut self) {
-        // assert!(self.highest_level() == 0);
-        // for l in self.clauses.learnt
+    fn simplify_clauses(&mut self, mut cls: Vec<usize>) -> Vec<usize> {
+        let mut i: usize = 0;
+        while i < cls.len() {
+            let cid = cls[i];
+            if self.clause_satisfied(cid) {
+                cls[i] = *cls.last().unwrap();
+                cls.pop();
+                self.remove_clause(cid);
+                continue;
+            }
+            let cls = &mut self.clauses.clauses[cid];
+            assert!(self.value[cls[0]].is_none() && self.value[cls[1]].is_none());
+            let mut j = 2;
+            while j < cls.len() {
+                if let Some(false) = self.value[cls[j]] {
+                    cls[j] = *cls.last().unwrap();
+                    cls.pop();
+                    continue;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        cls
+    }
+
+    pub fn clausedb_simplify_satisfied(&mut self) {
+        assert!(self.highest_level() == 0);
+        assert!(self.propagate().is_none());
+        // dbg!("====");
+        // dbg!(self.clauses.learnt.len());
+        // dbg!(self.clauses.origin.len());
+        // dbg!("----");
+        let leant = take(&mut self.clauses.learnt);
+        self.clauses.learnt = self.simplify_clauses(leant);
+        let origin = take(&mut self.clauses.origin);
+        self.clauses.origin = self.simplify_clauses(origin);
+        // dbg!(self.clauses.learnt.len());
+        // dbg!(self.clauses.origin.len());
     }
 }

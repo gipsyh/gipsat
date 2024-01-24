@@ -43,6 +43,7 @@ impl DerefMut for Watchers {
 
 impl Solver {
     pub fn propagate(&mut self) -> Option<usize> {
+        let propagate_full = self.highest_level() == 0;
         while self.propagated < self.trail.len() {
             let p = self.trail[self.propagated];
             self.propagated += 1;
@@ -50,7 +51,9 @@ impl Solver {
             for w in 0..self.watchers[p].len() {
                 let watchers = &mut self.watchers[p];
                 let blocker = watchers[w].blocker;
-                if (!self.domain.has(blocker) && !matches!(self.value[blocker], Some(false)))
+                if (!self.domain.has(blocker)
+                    && !matches!(self.value[blocker], Some(false))
+                    && !propagate_full)
                     || matches!(self.value[blocker], Some(true))
                 {
                     watchers[new] = watchers[w];
@@ -64,7 +67,9 @@ impl Solver {
                 }
                 assert!(cref[1] == !p);
                 let new_watcher = Watcher::new(cid, cref[0]);
-                if (!self.domain.has(cref[0]) && !matches!(self.value[cref[0]], Some(false)))
+                if (!self.domain.has(cref[0])
+                    && !matches!(self.value[cref[0]], Some(false))
+                    && !propagate_full)
                     || matches!(self.value[cref[0]], Some(true))
                 {
                     watchers[new] = new_watcher;
@@ -88,7 +93,7 @@ impl Solver {
                         watchers.truncate(new);
                         return Some(cid);
                     } else {
-                        if self.domain.has(cref[0]) {
+                        if self.domain.has(cref[0]) || propagate_full {
                             let assign = cref[0];
                             self.assign(assign, Some(cid));
                         }
