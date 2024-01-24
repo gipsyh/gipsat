@@ -123,7 +123,7 @@ impl DerefMut for ClauseDB {
 impl Solver {
     #[inline]
     pub fn clause_satisfied(&self, cls: usize) -> bool {
-        for l in self.clauses[cls].iter() {
+        for l in self.cdb[cls].iter() {
             if let Some(true) = self.value[*l] {
                 return true;
             }
@@ -133,20 +133,20 @@ impl Solver {
 
     pub fn attach_clause(&mut self, clause: Clause) -> usize {
         assert!(clause.len() > 1);
-        let id = self.clauses.len();
+        let id = self.cdb.len();
         self.watchers[!clause[0]].push(Watcher::new(id, clause[1]));
         self.watchers[!clause[1]].push(Watcher::new(id, clause[0]));
         match clause.kind {
-            ClauseKind::Origin => self.clauses.origin.push(id),
-            ClauseKind::Learnt => self.clauses.learnt.push(id),
+            ClauseKind::Origin => self.cdb.origin.push(id),
+            ClauseKind::Learnt => self.cdb.learnt.push(id),
             _ => todo!(),
         }
-        self.clauses.clauses.push(clause);
+        self.cdb.clauses.push(clause);
         id
     }
 
     fn remove_clause(&mut self, cidx: usize) {
-        let clause = take(&mut self.clauses[cidx]);
+        let clause = take(&mut self.cdb[cidx]);
         self.watchers.remove(!clause[0], cidx);
         self.watchers.remove(!clause[1], cidx);
     }
@@ -199,7 +199,7 @@ impl Solver {
                 self.remove_clause(cid);
                 continue;
             }
-            let cls = &mut self.clauses.clauses[cid];
+            let cls = &mut self.cdb.clauses[cid];
             assert!(self.value[cls[0]].is_none() && self.value[cls[1]].is_none());
             let mut j = 2;
             while j < cls.len() {
@@ -222,10 +222,10 @@ impl Solver {
         // dbg!(self.clauses.learnt.len());
         // dbg!(self.clauses.origin.len());
         // dbg!("----");
-        let leant = take(&mut self.clauses.learnt);
-        self.clauses.learnt = self.simplify_clauses(leant);
-        let origin = take(&mut self.clauses.origin);
-        self.clauses.origin = self.simplify_clauses(origin);
+        let leant = take(&mut self.cdb.learnt);
+        self.cdb.learnt = self.simplify_clauses(leant);
+        let origin = take(&mut self.cdb.origin);
+        self.cdb.origin = self.simplify_clauses(origin);
         // dbg!(self.clauses.learnt.len());
         // dbg!(self.clauses.origin.len());
     }

@@ -41,7 +41,7 @@ impl Solver {
         'ml: loop {
             if let Some(conflict) = self.propagate() {
                 if self.args.verbose {
-                    println!("{:?}", &self.clauses[conflict]);
+                    println!("{:?}", &self.cdb[conflict]);
                 }
                 if self.highest_level() == 0 {
                     return false;
@@ -56,11 +56,11 @@ impl Solver {
                     self.assign(learnt[0], None);
                 } else {
                     let learnt_idx = self.attach_clause(learnt);
-                    self.clauses.bump(learnt_idx);
-                    self.assign(self.clauses[learnt_idx][0], Some(learnt_idx));
+                    self.cdb.bump(learnt_idx);
+                    self.assign(self.cdb[learnt_idx][0], Some(learnt_idx));
                 }
                 self.vsids.decay();
-                self.clauses.decay();
+                self.cdb.decay();
             } else {
                 self.reduce();
                 while self.highest_level() < assumption.len() {

@@ -61,7 +61,7 @@ impl Solver {
                     continue;
                 }
                 let cid = watchers[w].clause;
-                let cref = &mut self.clauses[cid];
+                let cref = &mut self.cdb[cid];
                 if cref[0] == !p {
                     cref.swap(0, 1);
                 }

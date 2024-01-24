@@ -74,8 +74,8 @@ impl Solver {
         let mut stack: Vec<(Lit, usize)> = vec![(lit, 1)];
         'a: while let Some((p, b)) = stack.pop() {
             let c = self.reason[p].unwrap();
-            for i in b..self.clauses[c].len() {
-                let l = self.clauses[c][i];
+            for i in b..self.cdb[c].len() {
+                let l = self.cdb[c][i];
                 if self.level[l] == 0 || matches!(self.analyze[l], Mark::Seen | Mark::Removable) {
                     continue;
                 }
@@ -135,8 +135,8 @@ impl Solver {
         let mut trail_idx = self.trail.len() - 1;
         let mut resolve_lit = None;
         loop {
-            self.clauses.bump(conflict);
-            let cref = &self.clauses[conflict];
+            self.cdb.bump(conflict);
+            let cref = &self.cdb[conflict];
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
             for l in begin..cref.len() {
                 let lit = cref[l];
@@ -188,7 +188,7 @@ impl Solver {
             p = self.trail[i];
             if self.analyze.seen(p) {
                 if let Some(rc) = self.reason[p] {
-                    for l in &self.clauses[rc][1..] {
+                    for l in &self.cdb[rc][1..] {
                         if self.level[*l] > 0 {
                             self.analyze.see(*l);
                         }

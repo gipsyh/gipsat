@@ -28,7 +28,7 @@ use vsids::Vsids;
 #[derive(Default)]
 pub struct Solver {
     args: Args,
-    clauses: ClauseDB,
+    cdb: ClauseDB,
     watchers: Watchers,
     value: LitMap<Option<bool>>,
     trail: Vec<Lit>,
@@ -74,7 +74,7 @@ impl Solver {
         self.phase_saving.push(None);
         self.analyze.new_var();
         self.unsat_core.new_var();
-        self.clauses.new_var();
+        self.cdb.new_var();
         self.domain.new_var();
         res
     }
