@@ -16,7 +16,7 @@ mod vsids;
 pub use command::Args;
 
 use analyze::Analyze;
-use clause::{ClauseDB, ClauseKind};
+use clause::ClauseDB;
 use domain::Domain;
 use logic_form::{Clause, Lit, LitMap, LitSet, Var, VarMap};
 use propagate::Watchers;
@@ -74,7 +74,6 @@ impl Solver {
         self.phase_saving.push(None);
         self.analyze.new_var();
         self.unsat_core.new_var();
-        self.cdb.new_var();
         self.domain.new_var();
         res
     }
@@ -116,8 +115,7 @@ impl Solver {
                 _ => todo!(),
             }
         } else {
-            let clause = clause::Clause::new(clause, ClauseKind::Origin);
-            self.attach_clause(clause);
+            self.attach_clause(&clause, false);
         }
     }
 

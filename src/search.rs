@@ -55,9 +55,9 @@ impl Solver {
                     assert!(btl == 0);
                     self.assign(learnt[0], None);
                 } else {
-                    let learnt_idx = self.attach_clause(learnt);
-                    self.cdb.bump(learnt_idx);
-                    self.assign(self.cdb[learnt_idx][0], Some(learnt_idx));
+                    let learnt_id = self.attach_clause(&learnt, true);
+                    // self.cdb.bump(learnt_idx);
+                    self.assign(self.cdb[learnt_id][0], Some(learnt_id));
                 }
                 self.vsids.decay();
                 self.cdb.decay();

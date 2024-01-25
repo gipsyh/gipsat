@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 logic-form = { path = "../logic-form" }
 clap = { version = "4.3.0" , features = ["derive"] }
+bitfield-struct = "0.5.6"

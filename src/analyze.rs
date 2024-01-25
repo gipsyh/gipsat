@@ -1,8 +1,5 @@
-use crate::{
-    clause::{self, Clause, ClauseKind},
-    Solver,
-};
-use logic_form::{Lit, VarMap};
+use crate::Solver;
+use logic_form::{Clause, Lit, VarMap};
 use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -101,14 +98,12 @@ impl Solver {
 
     fn minimal_learnt(&mut self, mut learnt: Clause) -> Clause {
         let mut now = 1;
-        // dbg!(learnt.len());
         for i in 1..learnt.len() {
             if !self.lit_redundant(learnt[i]) {
                 learnt[now] = learnt[i];
                 now += 1
             }
         }
-        // dbg!(now);
         learnt.truncate(now);
         learnt
     }
@@ -126,16 +121,13 @@ impl Solver {
         lbd
     }
 
-    pub fn analyze(&mut self, mut conflict: usize) -> (clause::Clause, usize) {
-        let mut learnt = Clause::new(
-            logic_form::Clause::from([Lit::default()]),
-            ClauseKind::Learnt,
-        );
+    pub fn analyze(&mut self, mut conflict: usize) -> (Clause, usize) {
+        let mut learnt = Clause::from([Lit::default()]);
         let mut path = 0;
         let mut trail_idx = self.trail.len() - 1;
         let mut resolve_lit = None;
         loop {
-            self.cdb.bump(conflict);
+            // self.cdb.bump(conflict);
             let cref = &self.cdb[conflict];
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
             for l in begin..cref.len() {
