@@ -34,22 +34,19 @@ impl Vsids {
     }
 
     #[inline]
-    fn swap(&mut self, x: usize, y: usize) {
-        self.pos[self.heap[x]] = Some(y);
-        self.pos[self.heap[y]] = Some(x);
-        self.heap.swap(x, y);
-    }
-
-    #[inline]
     fn up(&mut self, mut idx: usize) {
-        while idx > 0 {
-            let pidx = (idx - 1) / 2;
-            if self.activity[self.heap[pidx]] >= self.activity[self.heap[idx]] {
+        let v = self.heap[idx];
+        while idx != 0 {
+            let pidx = (idx - 1) >> 1;
+            if self.activity[self.heap[pidx]] >= self.activity[v] {
                 break;
             }
-            self.swap(pidx, idx);
+            self.heap[idx] = self.heap[pidx];
+            self.pos[self.heap[idx]] = Some(idx);
             idx = pidx;
         }
+        self.heap[idx] = v;
+        self.pos[v] = Some(idx);
     }
 
     #[inline]
@@ -106,6 +103,7 @@ impl Vsids {
         Some(value)
     }
 
+    #[inline]
     pub fn bump(&mut self, var: Var) {
         self.activity[var] += self.act_inc;
         if self.activity[var] > 1e100 {
@@ -119,6 +117,7 @@ impl Vsids {
 
     const DECAY: f64 = 0.95;
 
+    #[inline]
     pub fn decay(&mut self) {
         self.act_inc *= 1.0 / Self::DECAY
     }
