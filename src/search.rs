@@ -22,7 +22,7 @@ impl Solver {
         self.pos_in_trail.push(self.trail.len())
     }
 
-    fn backtrack(&mut self, level: usize) {
+    pub fn backtrack(&mut self, level: usize) {
         if self.highest_level() == level {
             return;
         }

@@ -28,9 +28,10 @@ impl Vsids {
 
     #[inline]
     pub fn clear(&mut self) {
-        while let Some(v) = self.heap.pop() {
-            self.pos[v] = None;
+        for v in self.heap.iter() {
+            self.pos[*v] = None;
         }
+        self.heap.clear();
     }
 
     #[inline]

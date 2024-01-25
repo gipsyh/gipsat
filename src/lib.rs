@@ -108,6 +108,7 @@ impl Solver {
         };
         for l in clause.iter() {
             self.domain.global.mark(l.var());
+            self.vsids.push(l.var());
         }
         if clause.len() == 1 {
             match self.value[clause[0]] {
@@ -126,31 +127,32 @@ impl Solver {
 
     fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>) {
         self.domain.disable_local();
-        if !self.pos_in_trail.is_empty() {
-            while self.trail.len() > self.pos_in_trail[0] {
-                let bt = self.trail.pop().unwrap();
-                self.value[bt] = None;
-                self.value[!bt] = None;
-                self.phase_saving[bt] = Some(bt);
-            }
-            self.propagated = self.pos_in_trail[0];
-            self.pos_in_trail.truncate(0);
-        }
+        // if !self.pos_in_trail.is_empty() {
+        //     while self.trail.len() > self.pos_in_trail[0] {
+        //         let bt = self.trail.pop().unwrap();
+        //         self.value[bt] = None;
+        //         self.value[!bt] = None;
+        //         self.phase_saving[bt] = Some(bt);
+        //     }
+        //     self.propagated = self.pos_in_trail[0];
+        //     self.pos_in_trail.truncate(0);
+        // }
+        self.backtrack(0);
 
         while let Some(lc) = self.lazy_clauses.pop() {
             self.add_clause_inner(&lc);
         }
 
-        if let Some(domain) = domain {
-            self.domain.enable_local(domain, self.ts.as_ref().unwrap());
-        }
+        // if let Some(domain) = domain {
+        //     self.domain.enable_local(domain, self.ts.as_ref().unwrap());
+        // }
 
-        self.vsids.clear();
-        for d in self.domain.domains() {
-            if self.value[d.lit()].is_none() {
-                self.vsids.push(*d);
-            }
-        }
+        // self.vsids.clear();
+        // for d in self.domain.domains() {
+        //     if self.value[d.lit()].is_none() {
+        //         self.vsids.push(*d);
+        //     }
+        // }
     }
 
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
