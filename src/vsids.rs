@@ -40,6 +40,7 @@ impl Vsids {
         self.heap.swap(x, y);
     }
 
+    #[inline]
     fn up(&mut self, mut idx: usize) {
         while idx > 0 {
             let pidx = (idx - 1) / 2;
@@ -49,6 +50,33 @@ impl Vsids {
             self.swap(pidx, idx);
             idx = pidx;
         }
+    }
+
+    #[inline]
+    fn down(&mut self, mut idx: usize) {
+        let v = self.heap[idx];
+        loop {
+            let left = (idx << 1) + 1;
+            if left >= self.heap.len() {
+                break;
+            }
+            let right = left + 1;
+            let child = if right < self.heap.len()
+                && self.activity[self.heap[right]] > self.activity[self.heap[left]]
+            {
+                right
+            } else {
+                left
+            };
+            if self.activity[v] >= self.activity[self.heap[child]] {
+                break;
+            }
+            self.heap[idx] = self.heap[child];
+            self.pos[self.heap[idx]] = Some(idx);
+            idx = child;
+        }
+        self.heap[idx] = v;
+        self.pos[v] = Some(idx);
     }
 
     #[inline]
@@ -67,24 +95,15 @@ impl Vsids {
         if self.heap.is_empty() {
             return None;
         }
-        self.swap(0, self.heap.len() - 1);
-        let value = self.heap.pop();
-        self.pos[value.unwrap()] = None;
-        let mut idx = 0;
-        loop {
-            let mut smallest = idx;
-            for cidx in 2 * idx + 1..(2 * idx + 3).min(self.heap.len()) {
-                if self.activity[self.heap[cidx]] > self.activity[self.heap[smallest]] {
-                    smallest = cidx;
-                }
-            }
-            if smallest == idx {
-                break;
-            }
-            self.swap(idx, smallest);
-            idx = smallest;
+        let value = self.heap[0];
+        self.heap[0] = self.heap[self.heap.len() - 1];
+        self.pos[self.heap[0]] = Some(0);
+        self.pos[value] = None;
+        self.heap.pop();
+        if self.heap.len() > 1 {
+            self.down(0);
         }
-        value
+        Some(value)
     }
 
     pub fn bump(&mut self, var: Var) {
