@@ -300,7 +300,7 @@ impl Solver {
     }
 
     pub fn garbage_collect(&mut self) {
-        if self.cdb.allocator.wasted * 5 > self.cdb.allocator.len() {
+        if self.cdb.allocator.wasted * 3 > self.cdb.allocator.len() {
             let mut to =
                 Allocator::with_capacity(self.cdb.allocator.len() - self.cdb.allocator.wasted);
 
