@@ -1,5 +1,5 @@
 mod analyze;
-mod clause;
+mod cdb;
 mod command;
 mod domain;
 mod others;
@@ -16,7 +16,7 @@ mod vsids;
 pub use command::Args;
 
 use analyze::Analyze;
-use clause::ClauseDB;
+use cdb::ClauseDB;
 use domain::Domain;
 use logic_form::{Clause, Lit, LitMap, LitSet, Var, VarMap};
 use propagate::Watchers;
