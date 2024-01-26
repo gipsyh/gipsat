@@ -123,6 +123,13 @@ impl Solver {
         self.lazy_clauses.push(Clause::from(clause));
     }
 
+    pub fn add_lemma(&mut self, lemma: &[Lit]) {
+        for l in lemma.iter() {
+            self.domain.lemma.mark(l.var());
+        }
+        self.add_clause(lemma);
+    }
+
     fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>) {
         self.domain.disable_local();
         // if !self.pos_in_trail.is_empty() {

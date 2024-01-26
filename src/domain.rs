@@ -4,6 +4,7 @@ use logic_form::Var;
 #[derive(Default)]
 pub struct Domain {
     pub global: Mark,
+    pub lemma: Mark,
     local: Mark,
     enable_local: bool,
 }
@@ -11,12 +12,16 @@ pub struct Domain {
 impl Domain {
     pub fn new_var(&mut self) {
         self.global.new_var();
+        self.lemma.new_var();
         self.local.new_var();
     }
 
     pub fn enable_local(&mut self, domain: impl Iterator<Item = Var>, ts: &TransitionSystem) {
         self.local.clean();
         ts.get_coi(domain, &mut self.local, &self.global);
+        for l in self.lemma.marks() {
+            self.local.mark(*l);
+        }
         self.enable_local = true;
     }
 
