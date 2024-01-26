@@ -146,10 +146,9 @@ impl Solver {
     }
 
     fn remove_clause(&mut self, cidx: usize) {
-        // let clause = take(&mut self.cdb[cidx]);
-        // self.watchers.remove(!clause[0], cidx);
-        // self.watchers.remove(!clause[1], cidx);
-        todo!()
+        unsafe { self.cdb.allocator.data[cidx].header.set_remove(true) };
+        self.watchers.remove(!self.cdb[cidx][0], cidx);
+        self.watchers.remove(!self.cdb[cidx][1], cidx);
     }
 
     // fn locked(&self, cls: &Clause) -> bool {
@@ -190,44 +189,40 @@ impl Solver {
         todo!()
     }
 
-    // fn simplify_clauses(&mut self, mut cls: Vec<usize>) -> Vec<usize> {
-    //     let mut i: usize = 0;
-    //     while i < cls.len() {
-    //         let cid = cls[i];
-    //         if self.clause_satisfied(cid) {
-    //             cls[i] = *cls.last().unwrap();
-    //             cls.pop();
-    //             self.remove_clause(cid);
-    //             continue;
-    //         }
-    //         let cls = &mut self.cdb[cid];
-    //         assert!(self.value[cls[0]].is_none() && self.value[cls[1]].is_none());
-    //         let mut j = 2;
-    //         while j < cls.len() {
-    //             if let Some(false) = self.value[cls[j]] {
-    //                 cls[j] = *cls.last().unwrap();
-    //                 cls.pop();
-    //                 continue;
-    //             }
-    //             j += 1;
-    //         }
-    //         i += 1;
-    //     }
-    //     cls
-    // }
+    fn simplify_clauses(&mut self, mut cls: Vec<usize>) -> Vec<usize> {
+        let mut i: usize = 0;
+        while i < cls.len() {
+            let cid = cls[i];
+            if self.clause_satisfied(cid) {
+                cls[i] = *cls.last().unwrap();
+                cls.pop();
+                self.remove_clause(cid);
+                continue;
+            }
+            let mut j = 2;
+            while j < self.cdb[cid].len() {
+                let cls = &mut self.cdb[cid];
+                if let Some(false) = self.value[cls[j]] {
+                    cls[j] = *cls.last().unwrap();
+                    unsafe {
+                        let len = self.cdb.allocator.data[cid].header.size() - 1;
+                        self.cdb.allocator.data[cid].header.set_size(len);
+                    };
+                    continue;
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+        cls
+    }
 
     pub fn clausedb_simplify_satisfied(&mut self) {
-        // assert!(self.highest_level() == 0);
-        // assert!(self.propagate().is_none());
-        // // dbg!("====");
-        // // dbg!(self.clauses.learnt.len());
-        // // dbg!(self.clauses.origin.len());
-        // // dbg!("----");
-        // let leant = take(&mut self.cdb.learnt);
-        // self.cdb.learnt = self.simplify_clauses(leant);
-        // let origin = take(&mut self.cdb.origin);
-        // self.cdb.origin = self.simplify_clauses(origin);
-        // dbg!(self.clauses.learnt.len());
-        // dbg!(self.clauses.origin.len());
+        assert!(self.highest_level() == 0);
+        assert!(self.propagate().is_none());
+        let leant = take(&mut self.cdb.learnt);
+        self.cdb.learnt = self.simplify_clauses(leant);
+        let origin = take(&mut self.cdb.origin);
+        self.cdb.origin = self.simplify_clauses(origin);
     }
 }
