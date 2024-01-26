@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Watcher {
-    clause: usize,
+    pub clause: usize,
     blocker: Lit,
 }
 

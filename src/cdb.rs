@@ -9,9 +9,10 @@ use std::{
 #[bitfield(u32)]
 struct Header {
     learnt: bool,
-    remove: bool,
-    #[bits(30)]
-    size: usize,
+    removed: bool,
+    reloced: bool,
+    #[bits(29)]
+    len: usize,
 }
 
 #[repr(C)]
@@ -20,6 +21,30 @@ union Data {
     header: Header,
     lit: Lit,
     act: f32,
+    cid: u32,
+}
+
+pub struct Clause {
+    data: &'static [Data],
+}
+
+impl Clause {
+    #[inline]
+    pub fn len(&self) -> usize {
+        unsafe { self.data[0].header.len() }
+    }
+
+    #[inline]
+    pub fn valid(&self) -> bool {
+        !unsafe { self.data[0].header.removed() }
+    }
+
+    // pub fn pop(&mut self) {
+    //     unsafe {
+    //         let len = self.data[0].header.len() - 1;
+    //         self.data[0].header.set_len(len);
+    //     }
+    // }
 }
 
 struct Allocator {
@@ -28,18 +53,53 @@ struct Allocator {
 }
 
 impl Allocator {
+    fn with_capacity(capacity: usize) -> Self {
+        let capacity = capacity.max(1024 * 1024);
+        let data = Vec::with_capacity(capacity);
+        Self { data, wasted: 0 }
+    }
+
+    #[inline]
+    fn len(&mut self) -> usize {
+        self.data.len()
+    }
+
     #[inline]
     fn alloc(&mut self, clause: &[Lit], learnt: bool) -> usize {
-        let use_extra = learnt;
         let cid = self.data.len();
         let additional = clause.len() + 2;
         self.data.reserve(additional);
         unsafe { self.data.set_len(self.data.len() + additional) };
-        self.data[cid].header = Header::new().with_learnt(learnt).with_size(clause.len());
+        self.data[cid].header = Header::new().with_learnt(learnt).with_len(clause.len());
         for i in 0..clause.len() {
             self.data[cid + 1 + i].lit = clause[i];
         }
         cid
+    }
+
+    fn alloc_from(&mut self, from: &[Data]) -> usize {
+        let cid = self.data.len();
+        self.data.reserve(from.len());
+        self.data.extend_from_slice(from);
+        cid
+    }
+
+    pub fn free(&mut self, cid: usize) {
+        unsafe { self.data[cid].header.set_removed(true) };
+        self.wasted += unsafe { self.data[cid].header.len() } + 2;
+    }
+
+    pub fn reloc(&mut self, cid: usize, to: &mut Allocator) -> usize {
+        unsafe {
+            if self.data[cid].header.reloced() {
+                return self.data[cid + 1].cid as usize;
+            }
+            let len = self.data[cid].header.len() + 2;
+            let rcid = to.alloc_from(&self.data[cid..cid + len]);
+            self.data[cid].header.set_reloced(true);
+            self.data[cid + 1].cid = rcid as u32;
+            rcid
+        }
     }
 }
 
@@ -59,14 +119,26 @@ pub struct ClauseDB {
 
 impl ClauseDB {
     #[inline]
+    pub fn get_clause(&self, cid: usize) -> Clause {
+        let len = unsafe { self.allocator.data[cid].header.len() };
+        let data: &'static [Data] = unsafe { transmute(&self.allocator.data[cid..cid + 2 + len]) };
+        Clause { data }
+    }
+
+    #[inline]
     pub fn alloc(&mut self, clause: &[Lit], learnt: bool) -> usize {
-        let id = self.allocator.alloc(clause, learnt);
+        let cid = self.allocator.alloc(clause, learnt);
         if learnt {
-            self.learnt.push(id);
+            self.learnt.push(cid);
         } else {
-            self.origin.push(id);
+            self.origin.push(cid);
         }
-        id
+        cid
+    }
+
+    #[inline]
+    pub fn free(&mut self, cid: usize) {
+        self.allocator.free(cid)
     }
 
     #[inline]
@@ -114,14 +186,14 @@ impl Index<usize> for ClauseDB {
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        let len = unsafe { self.allocator.data[index].header.size() };
+        let len = unsafe { self.allocator.data[index].header.len() };
         unsafe { transmute(&self.allocator.data[index + 1..index + 1 + len]) }
     }
 }
 
 impl IndexMut<usize> for ClauseDB {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        let len = unsafe { self.allocator.data[index].header.size() };
+        let len = unsafe { self.allocator.data[index].header.len() };
         unsafe { transmute(&mut self.allocator.data[index + 1..index + 1 + len]) }
     }
 }
@@ -145,10 +217,10 @@ impl Solver {
         id
     }
 
-    fn remove_clause(&mut self, cidx: usize) {
-        unsafe { self.cdb.allocator.data[cidx].header.set_remove(true) };
-        self.watchers.remove(!self.cdb[cidx][0], cidx);
-        self.watchers.remove(!self.cdb[cidx][1], cidx);
+    fn remove_clause(&mut self, cid: usize) {
+        self.cdb.free(cid);
+        self.watchers.remove(!self.cdb[cid][0], cid);
+        self.watchers.remove(!self.cdb[cid][1], cid);
     }
 
     // fn locked(&self, cls: &Clause) -> bool {
@@ -205,8 +277,8 @@ impl Solver {
                 if let Some(false) = self.value[cls[j]] {
                     cls[j] = *cls.last().unwrap();
                     unsafe {
-                        let len = self.cdb.allocator.data[cid].header.size() - 1;
-                        self.cdb.allocator.data[cid].header.set_size(len);
+                        let len = self.cdb.allocator.data[cid].header.len() - 1;
+                        self.cdb.allocator.data[cid].header.set_len(len);
                     };
                     continue;
                 }
@@ -224,5 +296,35 @@ impl Solver {
         self.cdb.learnt = self.simplify_clauses(leant);
         let origin = take(&mut self.cdb.origin);
         self.cdb.origin = self.simplify_clauses(origin);
+        self.garbage_collect();
+    }
+
+    pub fn garbage_collect(&mut self) {
+        if self.cdb.allocator.wasted * 5 > self.cdb.allocator.len() {
+            let mut to =
+                Allocator::with_capacity(self.cdb.allocator.len() - self.cdb.allocator.wasted);
+
+            for ws in self.watchers.iter_mut() {
+                for w in ws.iter_mut() {
+                    w.clause = self.cdb.allocator.reloc(w.clause, &mut to);
+                }
+            }
+
+            for o in self.cdb.origin.iter_mut() {
+                *o = self.cdb.allocator.reloc(*o, &mut to)
+            }
+
+            for l in self.cdb.learnt.iter_mut() {
+                *l = self.cdb.allocator.reloc(*l, &mut to)
+            }
+
+            for l in self.trail.iter() {
+                if let Some(r) = self.reason[*l].as_mut() {
+                    *r = self.cdb.allocator.reloc(*r, &mut to)
+                }
+            }
+
+            self.cdb.allocator = to;
+        }
     }
 }
