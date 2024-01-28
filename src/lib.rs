@@ -101,14 +101,14 @@ impl Solver {
     }
 
     pub fn add_clause_inner(&mut self, clause: &[Lit]) {
-        let clause = match self.simplify_clause(clause) {
-            Some(clause) => clause,
-            None => return,
-        };
         for l in clause.iter() {
             self.domain.global.mark(l.var());
             // self.vsids.push(l.var());
         }
+        let clause = match self.simplify_clause(clause) {
+            Some(clause) => clause,
+            None => return,
+        };
         if clause.len() == 1 {
             match self.value[clause[0]] {
                 None => self.assign(clause[0], None),
