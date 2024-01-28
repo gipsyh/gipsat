@@ -7,10 +7,6 @@ pub struct Mark {
 }
 
 impl Mark {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     #[inline]
     pub fn new_var(&mut self) {
         self.marks.push(0);
@@ -31,13 +27,6 @@ impl Mark {
         if !self.is_marked(var) {
             self.marks[var] = self.timestamp;
             self.marked.push(var);
-        }
-    }
-
-    #[inline]
-    pub fn weak_mark(&mut self, var: Var) {
-        if !self.is_marked(var) {
-            self.marks[var] = self.timestamp;
         }
     }
 

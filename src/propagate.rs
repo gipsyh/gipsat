@@ -52,14 +52,20 @@ impl Solver {
             for w in 0..self.watchers[p].len() {
                 let watchers = &mut self.watchers[p];
                 let blocker = watchers[w].blocker;
-                if (!propagate_full
-                    && !self.domain.has(blocker)
-                    && !matches!(self.value[blocker], Some(false)))
-                    || matches!(self.value[blocker], Some(true))
-                {
-                    watchers[new] = watchers[w];
-                    new += 1;
-                    continue;
+                match self.value[blocker] {
+                    Some(true) => {
+                        watchers[new] = watchers[w];
+                        new += 1;
+                        continue;
+                    }
+                    None => {
+                        if !propagate_full && !self.domain.has(blocker) {
+                            watchers[new] = watchers[w];
+                            new += 1;
+                            continue;
+                        }
+                    }
+                    Some(false) => (),
                 }
                 let cid = watchers[w].clause;
                 let cref = &mut self.cdb[cid];
@@ -68,14 +74,20 @@ impl Solver {
                 }
                 assert!(cref[1] == !p);
                 let new_watcher = Watcher::new(cid, cref[0]);
-                if (!propagate_full
-                    && !self.domain.has(cref[0])
-                    && !matches!(self.value[cref[0]], Some(false)))
-                    || matches!(self.value[cref[0]], Some(true))
-                {
-                    watchers[new] = new_watcher;
-                    new += 1;
-                    continue;
+                match self.value[cref[0]] {
+                    Some(true) => {
+                        watchers[new] = new_watcher;
+                        new += 1;
+                        continue;
+                    }
+                    None => {
+                        if !propagate_full && !self.domain.has(cref[0]) {
+                            watchers[new] = new_watcher;
+                            new += 1;
+                            continue;
+                        }
+                    }
+                    Some(false) => (),
                 }
                 let new_lit = cref[2..]
                     .iter()
