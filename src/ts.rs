@@ -1,4 +1,3 @@
-use crate::utils::Mark;
 use logic_form::{Var, VarMap};
 
 pub struct TransitionSystem {
@@ -10,16 +9,27 @@ impl TransitionSystem {
         Self { dependence }
     }
 
-    pub fn get_coi(&self, root: impl Iterator<Item = Var>, mark: &mut Mark, domain: &Mark) {
-        let mut queue = Vec::from_iter(root);
-        for v in queue.iter() {
-            mark.mark(*v);
+    pub fn get_coi(
+        &self,
+        root: impl Iterator<Item = Var>,
+        mark_stamp: u32,
+        mark: &mut VarMap<u32>,
+        marks: &mut Vec<Var>,
+    ) {
+        for r in root {
+            if mark[r] != mark_stamp {
+                marks.push(r);
+                mark[r] = mark_stamp;
+            }
         }
-        while let Some(v) = queue.pop() {
+        let mut now = 0;
+        while now < marks.len() {
+            let v = marks[now];
+            now += 1;
             for d in self.dependence[v].iter() {
-                if !mark.is_marked(*d) {
-                    mark.mark(*d);
-                    queue.push(*d);
+                if mark[*d] != mark_stamp {
+                    marks.push(*d);
+                    mark[*d] = mark_stamp;
                 }
             }
         }

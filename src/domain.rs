@@ -1,26 +1,38 @@
-use crate::{ts::TransitionSystem, utils::Mark};
-use logic_form::Var;
+use crate::ts::TransitionSystem;
+use logic_form::{Var, VarMap};
 
-#[derive(Default)]
 pub struct Domain {
-    pub global: Mark,
-    pub lemma: Mark,
-    local: Mark,
+    pub global: VarMap<bool>,
+    pub global_marks: Vec<Var>,
+    pub lemma: VarMap<bool>,
+    pub lemma_marks: Vec<Var>,
+    local_stamp: u32,
+    local: VarMap<u32>,
+    local_marks: Vec<Var>,
     enable_local: bool,
 }
 
 impl Domain {
     pub fn new_var(&mut self) {
-        self.global.new_var();
-        self.lemma.new_var();
-        self.local.new_var();
+        self.global.push(false);
+        self.lemma.push(false);
+        self.local.push(0);
     }
 
     pub fn enable_local(&mut self, domain: impl Iterator<Item = Var>, ts: &TransitionSystem) {
-        self.local.clean();
-        ts.get_coi(domain, &mut self.local, &self.global);
-        for l in self.lemma.marks() {
-            self.local.mark(*l);
+        self.local_stamp += 1;
+        self.local_marks.clear();
+        ts.get_coi(
+            domain,
+            self.local_stamp,
+            &mut self.local,
+            &mut self.local_marks,
+        );
+        for l in self.lemma_marks.iter() {
+            if self.local[*l] != self.local_stamp {
+                self.local[*l] = self.local_stamp;
+                self.local_marks.push(*l);
+            }
         }
         self.enable_local = true;
     }
@@ -32,17 +44,32 @@ impl Domain {
     #[inline]
     pub fn has<V: Into<Var>>(&self, var: V) -> bool {
         if self.enable_local {
-            self.local.is_marked(var)
+            self.local[var.into()] == self.local_stamp
         } else {
-            self.global.is_marked(var)
+            self.global[var.into()]
         }
     }
 
     pub fn domains(&self) -> impl Iterator<Item = &Var> {
         if self.enable_local {
-            self.local.marks()
+            self.local_marks.iter()
         } else {
-            self.global.marks()
+            self.global_marks.iter()
+        }
+    }
+}
+
+impl Default for Domain {
+    fn default() -> Self {
+        Self {
+            global: Default::default(),
+            global_marks: Default::default(),
+            lemma: Default::default(),
+            lemma_marks: Default::default(),
+            local_stamp: 1,
+            local: Default::default(),
+            local_marks: Default::default(),
+            enable_local: Default::default(),
         }
     }
 }

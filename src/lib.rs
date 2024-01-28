@@ -102,7 +102,10 @@ impl Solver {
 
     pub fn add_clause_inner(&mut self, clause: &[Lit]) {
         for l in clause.iter() {
-            self.domain.global.mark(l.var());
+            if !self.domain.global[l.var()] {
+                self.domain.global[l.var()] = true;
+                self.domain.global_marks.push(l.var());
+            }
             // self.vsids.push(l.var());
         }
         let clause = match self.simplify_clause(clause) {
@@ -125,7 +128,10 @@ impl Solver {
 
     pub fn add_lemma(&mut self, lemma: &[Lit]) {
         for l in lemma.iter() {
-            self.domain.lemma.mark(l.var());
+            if !self.domain.lemma[l.var()] {
+                self.domain.lemma[l.var()] = true;
+                self.domain.lemma_marks.push(l.var());
+            }
         }
         self.add_clause(lemma);
     }
