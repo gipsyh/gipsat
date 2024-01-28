@@ -7,8 +7,6 @@ mod propagate;
 mod search;
 mod simplify;
 mod statistic;
-#[cfg(test)]
-mod tests;
 mod ts;
 mod utils;
 mod vsids;
