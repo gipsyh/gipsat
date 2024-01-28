@@ -192,6 +192,7 @@ impl Index<usize> for ClauseDB {
 }
 
 impl IndexMut<usize> for ClauseDB {
+    #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let len = unsafe { self.allocator.data[index].header.len() };
         unsafe { transmute(&mut self.allocator.data[index + 1..index + 1 + len]) }

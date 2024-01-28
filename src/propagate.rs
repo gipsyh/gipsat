@@ -9,6 +9,7 @@ pub struct Watcher {
 }
 
 impl Watcher {
+    #[inline]
     pub fn new(clause: usize, blocker: Lit) -> Self {
         Self { clause, blocker }
     }
@@ -20,6 +21,7 @@ pub struct Watchers {
 }
 
 impl Watchers {
+    #[inline]
     pub fn remove(&mut self, lit: Lit, clause: usize) {
         self.watchers[lit].retain(|w| w.clause != clause);
     }
