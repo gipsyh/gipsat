@@ -1,6 +1,5 @@
 use crate::Solver;
 use logic_form::{Lit, LitMap};
-use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Watcher {
@@ -17,29 +16,25 @@ impl Watcher {
 
 #[derive(Default)]
 pub struct Watchers {
-    watchers: LitMap<Vec<Watcher>>,
+    pub wtrs: LitMap<Vec<Watcher>>,
 }
 
 impl Watchers {
     #[inline]
-    pub fn remove(&mut self, lit: Lit, clause: usize) {
-        self.watchers[lit].retain(|w| w.clause != clause);
+    pub fn reserve(&mut self, size: usize) {
+        self.wtrs.resize_with(size * 2, Default::default);
     }
-}
-
-impl Deref for Watchers {
-    type Target = LitMap<Vec<Watcher>>;
 
     #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.watchers
+    pub fn attach(&mut self, cref: usize, cls: &[Lit]) {
+        self.wtrs[!cls[0]].push(Watcher::new(cref, cls[1]));
+        self.wtrs[!cls[1]].push(Watcher::new(cref, cls[0]));
     }
-}
 
-impl DerefMut for Watchers {
     #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.watchers
+    pub fn detach(&mut self, cref: usize, cls: &[Lit]) {
+        self.wtrs[!cls[0]].retain(|w| w.clause != cref);
+        self.wtrs[!cls[1]].retain(|w| w.clause != cref);
     }
 }
 
@@ -50,9 +45,10 @@ impl Solver {
         while self.propagated < self.trail.len() {
             let p = self.trail[self.propagated];
             self.propagated += 1;
+
             let mut new = 0;
-            for w in 0..self.watchers[p].len() {
-                let watchers = &mut self.watchers[p];
+            for w in 0..self.watchers.wtrs[p].len() {
+                let watchers = &mut self.watchers.wtrs[p];
                 let blocker = watchers[w].blocker;
                 match self.value[blocker] {
                     Some(true) => {
@@ -96,7 +92,7 @@ impl Solver {
                     .position(|l| !matches!(self.value[*l], Some(false)));
                 if let Some(new_lit) = new_lit {
                     cref.swap(1, new_lit + 2);
-                    self.watchers[!cref[1]].push(new_watcher);
+                    self.watchers.wtrs[!cref[1]].push(new_watcher);
                 } else {
                     watchers[new] = new_watcher;
                     new += 1;
@@ -115,7 +111,7 @@ impl Solver {
                     }
                 }
             }
-            self.watchers[p].truncate(new);
+            self.watchers.wtrs[p].truncate(new);
         }
         None
     }

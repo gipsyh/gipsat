@@ -61,12 +61,12 @@ impl Solver {
     }
 
     pub fn new_var(&mut self) -> Var {
+        let size = self.level.len() + 1;
         self.value.push(None);
         self.value.push(None);
         self.level.push(0);
         self.reason.push(None);
-        self.watchers.push(Vec::new());
-        self.watchers.push(Vec::new());
+        self.watchers.reserve(size);
         let res = Var::new(self.level.len() - 1);
         self.vsids.new_var();
         self.phase_saving.push(None);

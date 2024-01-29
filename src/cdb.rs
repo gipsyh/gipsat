@@ -1,4 +1,4 @@
-use crate::{propagate::Watcher, Solver};
+use crate::Solver;
 use bitfield_struct::bitfield;
 use logic_form::Lit;
 use std::{
@@ -213,15 +213,13 @@ impl Solver {
     pub fn attach_clause(&mut self, clause: &[Lit], learnt: bool) -> usize {
         assert!(clause.len() > 1);
         let id = self.cdb.alloc(clause, learnt);
-        self.watchers[!clause[0]].push(Watcher::new(id, clause[1]));
-        self.watchers[!clause[1]].push(Watcher::new(id, clause[0]));
+        self.watchers.attach(id, &self.cdb[id]);
         id
     }
 
-    fn remove_clause(&mut self, cid: usize) {
-        self.cdb.free(cid);
-        self.watchers.remove(!self.cdb[cid][0], cid);
-        self.watchers.remove(!self.cdb[cid][1], cid);
+    fn remove_clause(&mut self, cref: usize) {
+        self.cdb.free(cref);
+        self.watchers.detach(cref, &self.cdb[cref]);
     }
 
     // fn locked(&self, cls: &Clause) -> bool {
@@ -305,7 +303,7 @@ impl Solver {
             let mut to =
                 Allocator::with_capacity(self.cdb.allocator.len() - self.cdb.allocator.wasted);
 
-            for ws in self.watchers.iter_mut() {
+            for ws in self.watchers.wtrs.iter_mut() {
                 for w in ws.iter_mut() {
                     w.clause = self.cdb.allocator.reloc(w.clause, &mut to);
                 }
