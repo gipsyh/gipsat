@@ -111,7 +111,10 @@ impl Solver {
         }
         if clause.len() == 1 {
             match self.value[clause[0]] {
-                None => self.assign(clause[0], None),
+                None => {
+                    self.assign(clause[0], None);
+                    assert!(self.propagate().is_none());
+                }
                 _ => todo!(),
             }
         } else {
