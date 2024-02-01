@@ -19,7 +19,10 @@ use domain::Domain;
 use logic_form::{Clause, Cube, Lit, LitMap, LitSet, Var, VarMap};
 use propagate::Watchers;
 use statistic::Statistic;
-use std::fmt::{self, Debug};
+use std::{
+    fmt::{self, Debug},
+    mem::take,
+};
 use ts::TransitionSystem;
 use vsids::Vsids;
 
@@ -56,8 +59,11 @@ impl Solver {
         self.args = args
     }
 
-    pub fn set_ts(&mut self, dep: VarMap<Vec<Var>>) {
-        self.ts = Some(TransitionSystem::new(dep))
+    pub fn set_ts(&mut self, cnf: &[Clause], dep: &VarMap<Vec<Var>>) {
+        for cls in cnf.iter() {
+            self.add_clause_direct(cls);
+        }
+        self.ts = Some(TransitionSystem::new(dep.clone()))
     }
 
     pub fn new_var(&mut self) -> Var {
@@ -122,6 +128,10 @@ impl Solver {
         }
     }
 
+    pub fn add_clause_direct(&mut self, clause: &[Lit]) {
+        self.add_clause_inner(clause);
+    }
+
     pub fn add_clause(&mut self, clause: &[Lit]) {
         self.lazy_clauses.push(Clause::from(clause));
     }
@@ -149,8 +159,8 @@ impl Solver {
             self.pos_in_trail.truncate(0);
         }
         // self.backtrack(0);
-
-        while let Some(lc) = self.lazy_clauses.pop() {
+        let lazy = take(&mut self.lazy_clauses);
+        for lc in lazy {
             self.add_clause_inner(&lc);
         }
 

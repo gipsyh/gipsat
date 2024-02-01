@@ -41,7 +41,6 @@ impl Watchers {
 impl Solver {
     pub fn propagate(&mut self) -> Option<usize> {
         let propagate_full = self.highest_level() == 0;
-        // let propagate_full = true;
         while self.propagated < self.trail.len() {
             let p = self.trail[self.propagated];
             self.propagated += 1;
