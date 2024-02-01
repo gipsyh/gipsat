@@ -14,15 +14,12 @@ mod vsids;
 pub use command::Args;
 
 use analyze::Analyze;
-use cdb::ClauseDB;
+use cdb::{ClauseDB, ClauseKind};
 use domain::Domain;
 use logic_form::{Clause, Cube, Lit, LitMap, LitSet, Var, VarMap};
 use propagate::Watchers;
 use statistic::Statistic;
-use std::{
-    fmt::{self, Debug},
-    mem::take,
-};
+use std::fmt::{self, Debug};
 use ts::TransitionSystem;
 use vsids::Vsids;
 
@@ -48,6 +45,8 @@ pub struct Solver {
     ts: Option<TransitionSystem>,
 
     statistic: Statistic,
+
+    constrain_act: Option<Lit>,
 }
 
 impl Solver {
@@ -61,7 +60,7 @@ impl Solver {
 
     pub fn set_ts(&mut self, cnf: &[Clause], dep: &VarMap<Vec<Var>>) {
         for cls in cnf.iter() {
-            self.add_clause_direct(cls);
+            self.add_clause(cls);
         }
         self.ts = Some(TransitionSystem::new(dep.clone()))
     }
@@ -109,13 +108,20 @@ impl Solver {
             Some(clause) => clause,
             None => return,
         };
+        let mut kind = ClauseKind::Origin;
         for l in clause.iter() {
             if !self.domain.global[l.var()] {
                 self.domain.global[l.var()] = true;
                 self.domain.global_marks.push(l.var());
             }
+            if let Some(act) = self.constrain_act {
+                if act.var() == l.var() {
+                    kind = ClauseKind::Temporary;
+                }
+            }
         }
         if clause.len() == 1 {
+            assert!(matches!(kind, ClauseKind::Origin));
             match self.value[clause[0]] {
                 None => {
                     self.assign(clause[0], None);
@@ -124,12 +130,12 @@ impl Solver {
                 _ => todo!(),
             }
         } else {
-            self.attach_clause(&clause, false);
+            self.attach_clause(&clause, kind);
         }
     }
 
     pub fn add_clause_direct(&mut self, clause: &[Lit]) {
-        self.add_clause_inner(clause);
+        self.add_clause(clause);
     }
 
     pub fn add_clause(&mut self, clause: &[Lit]) {
@@ -148,6 +154,7 @@ impl Solver {
 
     fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>) {
         self.domain.disable_local();
+        self.clean_temporary();
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
@@ -158,9 +165,8 @@ impl Solver {
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
         }
-        // self.backtrack(0);
-        let lazy = take(&mut self.lazy_clauses);
-        for lc in lazy {
+
+        while let Some(lc) = self.lazy_clauses.pop() {
             self.add_clause_inner(&lc);
         }
 
@@ -212,7 +218,11 @@ impl Solver {
         mut constrain: Clause,
         domain: bool,
     ) -> SatResult<'_> {
-        let act = self.new_var().lit();
+        if self.constrain_act.is_none() {
+            self.new_round(None::<std::option::IntoIter<Var>>);
+            self.constrain_act = Some(self.new_var().lit());
+        }
+        let act = self.constrain_act.unwrap();
         let mut assumption = Cube::new();
         assumption.extend_from_slice(assump);
         assumption.push(act);
@@ -228,10 +238,8 @@ impl Solver {
             self.simplify();
         }
         if self.search(&assumption) {
-            self.lazy_clauses.push(Clause::from([!act]));
             SatResult::Sat(Model { solver: self })
         } else {
-            self.lazy_clauses.push(Clause::from([!act]));
             SatResult::Unsat(Conflict { solver: self })
         }
     }

@@ -1,4 +1,4 @@
-use crate::Solver;
+use crate::{cdb::ClauseKind, Solver};
 use logic_form::Lit;
 
 impl Solver {
@@ -55,7 +55,15 @@ impl Solver {
                     assert!(btl == 0);
                     self.assign(learnt[0], None);
                 } else {
-                    let learnt_id = self.attach_clause(&learnt, true);
+                    let mut kind = ClauseKind::Origin;
+                    for l in learnt.iter() {
+                        if let Some(act) = self.constrain_act {
+                            if act.var() == l.var() {
+                                kind = ClauseKind::Temporary;
+                            }
+                        }
+                    }
+                    let learnt_id = self.attach_clause(&learnt, kind);
                     // self.cdb.bump(learnt_idx);
                     self.assign(self.cdb[learnt_id][0], Some(learnt_id));
                 }

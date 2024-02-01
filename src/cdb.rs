@@ -8,10 +8,9 @@ use std::{
 
 #[bitfield(u32)]
 struct Header {
-    learnt: bool,
     removed: bool,
     reloced: bool,
-    #[bits(29)]
+    #[bits(30)]
     len: usize,
 }
 
@@ -65,12 +64,12 @@ impl Allocator {
     }
 
     #[inline]
-    fn alloc(&mut self, clause: &[Lit], learnt: bool) -> usize {
+    fn alloc(&mut self, clause: &[Lit]) -> usize {
         let cid = self.data.len();
         let additional = clause.len() + 2;
         self.data.reserve(additional);
         unsafe { self.data.set_len(self.data.len() + additional) };
-        self.data[cid].header = Header::new().with_learnt(learnt).with_len(clause.len());
+        self.data[cid].header = Header::new().with_len(clause.len());
         for i in 0..clause.len() {
             self.data[cid + 1 + i].lit = clause[i];
         }
@@ -110,10 +109,17 @@ impl Default for Allocator {
     }
 }
 
+pub enum ClauseKind {
+    Origin,
+    Learnt,
+    Temporary,
+}
+
 pub struct ClauseDB {
     allocator: Allocator,
     origin: Vec<usize>,
     learnt: Vec<usize>,
+    temporary: Vec<usize>,
     act_inc: f32,
 }
 
@@ -126,12 +132,12 @@ impl ClauseDB {
     }
 
     #[inline]
-    pub fn alloc(&mut self, clause: &[Lit], learnt: bool) -> usize {
-        let cid = self.allocator.alloc(clause, learnt);
-        if learnt {
-            self.learnt.push(cid);
-        } else {
-            self.origin.push(cid);
+    pub fn alloc(&mut self, clause: &[Lit], kind: ClauseKind) -> usize {
+        let cid = self.allocator.alloc(clause);
+        match kind {
+            ClauseKind::Origin => self.origin.push(cid),
+            ClauseKind::Learnt => self.learnt.push(cid),
+            ClauseKind::Temporary => self.temporary.push(cid),
         }
         cid
     }
@@ -176,6 +182,7 @@ impl Default for ClauseDB {
             allocator: Default::default(),
             origin: Default::default(),
             learnt: Default::default(),
+            temporary: Default::default(),
             act_inc: 1.0,
         }
     }
@@ -210,9 +217,9 @@ impl Solver {
         false
     }
 
-    pub fn attach_clause(&mut self, clause: &[Lit], learnt: bool) -> usize {
+    pub fn attach_clause(&mut self, clause: &[Lit], kind: ClauseKind) -> usize {
         assert!(clause.len() > 1);
-        let id = self.cdb.alloc(clause, learnt);
+        let id = self.cdb.alloc(clause, kind);
         self.watchers.attach(id, &self.cdb[id]);
         id
     }
@@ -220,6 +227,12 @@ impl Solver {
     fn remove_clause(&mut self, cref: usize) {
         self.cdb.free(cref);
         self.watchers.detach(cref, &self.cdb[cref]);
+    }
+
+    pub fn clean_temporary(&mut self) {
+        while let Some(t) = self.cdb.temporary.pop() {
+            self.remove_clause(t);
+        }
     }
 
     // fn locked(&self, cls: &Clause) -> bool {
@@ -314,6 +327,10 @@ impl Solver {
             }
 
             for l in self.cdb.learnt.iter_mut() {
+                *l = self.cdb.allocator.reloc(*l, &mut to)
+            }
+
+            for l in self.cdb.temporary.iter_mut() {
                 *l = self.cdb.allocator.reloc(*l, &mut to)
             }
 
