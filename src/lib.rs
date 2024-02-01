@@ -16,7 +16,7 @@ pub use command::Args;
 use analyze::Analyze;
 use cdb::ClauseDB;
 use domain::Domain;
-use logic_form::{Clause, Lit, LitMap, LitSet, Var, VarMap};
+use logic_form::{Clause, Cube, Lit, LitMap, LitSet, Var, VarMap};
 use propagate::Watchers;
 use statistic::Statistic;
 use std::fmt::{self, Debug};
@@ -194,25 +194,34 @@ impl Solver {
         }
     }
 
-    pub fn solve_with_constrain(&mut self, assumption: &[Lit], constrain: &[Lit]) -> SatResult<'_> {
-        todo!();
-        // self.reset();
-        // let mut assumption = Clause::from(assumption);
-        // if let Some(clause) = self.simplify_clause(constrain) {
-        //     if clause.len() == 1 {
-        //         assumption.push(clause[0]);
-        //     } else {
-        //         todo!();
-        //         let mut constrain = Clause::from(constrain);
-        //         self.attach_clause(clause::Clause::new(constrain, ClauseKind::Learnt));
-        //     }
-        // }
-        // assert!(self.lazy_clauses.is_empty());
-        // if self.search(&assumption) {
-        //     SatResult::Sat(Model { solver: self })
-        // } else {
-        //     SatResult::Unsat(Conflict { solver: self })
-        // }
+    pub fn solve_with_constrain(
+        &mut self,
+        assump: &[Lit],
+        mut constrain: Clause,
+        domain: bool,
+    ) -> SatResult<'_> {
+        let act = self.new_var().lit();
+        let mut assumption = Cube::new();
+        assumption.extend_from_slice(assump);
+        assumption.push(act);
+        constrain.push(!act);
+        self.lazy_clauses.push(constrain);
+        if domain {
+            self.new_round(Some(assump.iter().map(|l| l.var())));
+        } else {
+            self.new_round(None::<std::option::IntoIter<Var>>);
+        };
+        self.statistic.num_solve += 1;
+        if self.statistic.num_solve % 100 == 1 {
+            self.simplify();
+        }
+        if self.search(&assumption) {
+            self.lazy_clauses.push(Clause::from([!act]));
+            SatResult::Sat(Model { solver: self })
+        } else {
+            self.lazy_clauses.push(Clause::from([!act]));
+            SatResult::Unsat(Conflict { solver: self })
+        }
     }
 
     /// # Safety
