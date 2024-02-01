@@ -184,7 +184,7 @@ impl Solver {
     ) -> SatResult<'_> {
         self.new_round(Some(domain));
         self.statistic.num_solve += 1;
-        if self.statistic.num_solve % 100 == 0 {
+        if self.statistic.num_solve % 100 == 1 {
             self.simplify();
         }
         if self.search(assumption) {
