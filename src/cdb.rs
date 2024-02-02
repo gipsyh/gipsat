@@ -152,6 +152,11 @@ impl ClauseDB {
         self.learnt.len()
     }
 
+    #[inline]
+    pub fn num_origin(&self) -> usize {
+        self.origin.len()
+    }
+
     // #[inline]
     // pub fn bump(&mut self, cid: usize) {
     //     if !self.clauses[cid].is_leanrt() {
@@ -225,8 +230,8 @@ impl Solver {
     }
 
     fn remove_clause(&mut self, cref: usize) {
-        self.cdb.free(cref);
         self.watchers.detach(cref, &self.cdb[cref]);
+        self.cdb.free(cref);
     }
 
     pub fn clean_temporary(&mut self) {

@@ -6,7 +6,7 @@ use std::time::Instant;
 fn main() {
     let args = Args::parse();
     let cnf = Cnf::from_dimacs_file(&args.dimacs);
-    let mut solver = Solver::new();
+    let mut solver = Solver::new("main");
     solver.set_args(args);
     for cls in cnf.iter() {
         solver.add_clause(cls);

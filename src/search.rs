@@ -55,7 +55,7 @@ impl Solver {
                     assert!(btl == 0);
                     self.assign(learnt[0], None);
                 } else {
-                    let mut kind = ClauseKind::Origin;
+                    let mut kind = ClauseKind::Learnt;
                     for l in learnt.iter() {
                         if let Some(act) = self.constrain_act {
                             if act.var() == l.var() {

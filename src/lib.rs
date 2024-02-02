@@ -25,6 +25,7 @@ use vsids::Vsids;
 
 #[derive(Default)]
 pub struct Solver {
+    name: String,
     args: Args,
     cdb: ClauseDB,
     watchers: Watchers,
@@ -50,8 +51,11 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            ..Default::default()
+        }
     }
 
     pub fn set_args(&mut self, args: Args) {
@@ -165,6 +169,11 @@ impl Solver {
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
         }
+        // dbg!(&self.name);
+        // dbg!(self.num_var());
+        // dbg!(self.trail.len());
+        // dbg!(self.cdb.num_learnt());
+        // dbg!(self.cdb.num_origin());
 
         while let Some(lc) = self.lazy_clauses.pop() {
             self.add_clause_inner(&lc);
