@@ -42,6 +42,7 @@ pub struct Solver {
 
     domain: Domain,
     lazy_clauses: Vec<Clause>,
+    lazy_temp_lemma: Vec<Clause>,
 
     ts: Option<TransitionSystem>,
 
@@ -107,12 +108,11 @@ impl Solver {
         Some(clause)
     }
 
-    pub fn add_clause_inner(&mut self, clause: &[Lit]) {
+    pub fn add_clause_inner(&mut self, clause: &[Lit], mut kind: ClauseKind) {
         let clause = match self.simplify_clause(clause) {
             Some(clause) => clause,
             None => return,
         };
-        let mut kind = ClauseKind::Origin;
         for l in clause.iter() {
             if !self.domain.global[l.var()] {
                 self.domain.global[l.var()] = true;
@@ -125,7 +125,7 @@ impl Solver {
             }
         }
         if clause.len() == 1 {
-            assert!(matches!(kind, ClauseKind::Origin));
+            assert!(!matches!(kind, ClauseKind::Temporary));
             match self.value[clause[0]] {
                 None => {
                     self.assign(clause[0], None);
@@ -144,6 +144,26 @@ impl Solver {
 
     pub fn add_clause(&mut self, clause: &[Lit]) {
         self.lazy_clauses.push(Clause::from(clause));
+    }
+
+    pub fn add_temp_lemma(&mut self, clause: &[Lit]) {
+        self.lazy_temp_lemma.push(Clause::from(clause));
+    }
+
+    pub fn cleanup_temp_lemma(&mut self) {
+        self.domain.disable_local();
+        self.clean_temporary();
+        if !self.pos_in_trail.is_empty() {
+            while self.trail.len() > self.pos_in_trail[0] {
+                let bt = self.trail.pop().unwrap();
+                self.value[bt] = None;
+                self.value[!bt] = None;
+                self.phase_saving[bt] = Some(bt);
+            }
+            self.propagated = self.pos_in_trail[0];
+            self.pos_in_trail.truncate(0);
+        }
+        self.clean_temp_lemma();
     }
 
     pub fn add_lemma(&mut self, lemma: &[Lit]) {
@@ -176,7 +196,11 @@ impl Solver {
         // dbg!(self.cdb.num_origin());
 
         while let Some(lc) = self.lazy_clauses.pop() {
-            self.add_clause_inner(&lc);
+            self.add_clause_inner(&lc, ClauseKind::Origin);
+        }
+
+        while let Some(lc) = self.lazy_temp_lemma.pop() {
+            self.add_clause_inner(&lc, ClauseKind::TempLemma);
         }
 
         if let Some(domain) = domain {

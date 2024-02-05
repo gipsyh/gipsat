@@ -113,6 +113,7 @@ pub enum ClauseKind {
     Origin,
     Learnt,
     Temporary,
+    TempLemma,
 }
 
 pub struct ClauseDB {
@@ -120,6 +121,7 @@ pub struct ClauseDB {
     origin: Vec<usize>,
     learnt: Vec<usize>,
     temporary: Vec<usize>,
+    temp_lemma: Vec<usize>,
     act_inc: f32,
 }
 
@@ -138,6 +140,7 @@ impl ClauseDB {
             ClauseKind::Origin => self.origin.push(cid),
             ClauseKind::Learnt => self.learnt.push(cid),
             ClauseKind::Temporary => self.temporary.push(cid),
+            ClauseKind::TempLemma => self.temp_lemma.push(cid),
         }
         cid
     }
@@ -188,6 +191,7 @@ impl Default for ClauseDB {
             origin: Default::default(),
             learnt: Default::default(),
             temporary: Default::default(),
+            temp_lemma: Default::default(),
             act_inc: 1.0,
         }
     }
@@ -234,7 +238,7 @@ impl Solver {
         self.cdb.free(cref);
     }
 
-    pub fn clean_temporary(&mut self) {
+    pub(crate) fn clean_temporary(&mut self) {
         while let Some(t) = self.cdb.temporary.pop() {
             self.remove_clause(t);
         }
@@ -252,6 +256,18 @@ impl Solver {
                 self.remove_clause(l);
             } else {
                 self.cdb.learnt.push(l);
+            }
+        }
+    }
+
+    pub fn clean_temp_lemma(&mut self) {
+        assert!(self.highest_level() == 0);
+        for l in take(&mut self.cdb.temp_lemma) {
+            let cls = &self.cdb[l];
+            if self.locked(cls) {
+                self.cdb.origin.push(l);
+            } else {
+                self.remove_clause(l);
             }
         }
     }
@@ -328,6 +344,10 @@ impl Solver {
             }
 
             for l in self.cdb.temporary.iter_mut() {
+                *l = self.cdb.allocator.reloc(*l, &mut to)
+            }
+
+            for l in self.cdb.temp_lemma.iter_mut() {
                 *l = self.cdb.allocator.reloc(*l, &mut to)
             }
 
