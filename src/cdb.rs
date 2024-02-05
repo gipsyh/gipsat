@@ -240,28 +240,20 @@ impl Solver {
         }
     }
 
-    // fn locked(&self, cls: &Clause) -> bool {
-    //     matches!(self.value[cls[0]], Some(true)) && self.reason[cls[0]].is_some()
-    // }
+    fn locked(&self, cls: &[Lit]) -> bool {
+        matches!(self.value[cls[0]], Some(true)) && self.reason[cls[0]].is_some()
+    }
 
-    pub fn reduce(&mut self) {
-        // if self.clauses.learnt.len() < self.trail.len() {
-        //     return;
-        // }
-        // if self.clauses.learnt.len() - self.trail.len() < 10000 {
-        //     return;
-        // }
-        // dbg!(self.clauses.learnt.len());
-        // let limit = self.clauses.act_inc / self.clauses.learnt.len() as f32;
-        // for l in take(&mut self.clauses.learnt) {
-        //     let cls = &self.clauses[l];
-        //     if !self.locked(cls) && cls.len() > 2 && cls.activity < limit {
-        //         self.remove_clause(l);
-        //     } else {
-        //         self.clauses.learnt.push(l);
-        //     }
-        // }
-        // dbg!(self.clauses.learnt.len());
+    pub fn clean_leanrt(&mut self) {
+        assert!(self.highest_level() == 0);
+        for l in take(&mut self.cdb.learnt) {
+            let cls = &self.cdb[l];
+            if !self.locked(cls) && cls.len() > 2 {
+                self.remove_clause(l);
+            } else {
+                self.cdb.learnt.push(l);
+            }
+        }
     }
 
     pub fn verify(&mut self) -> bool {

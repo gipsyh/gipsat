@@ -194,6 +194,9 @@ impl Solver {
     pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
         self.new_round(None::<std::option::IntoIter<Var>>);
         self.statistic.num_solve += 1;
+        if self.statistic.num_solve % 1000 == 1 {
+            self.clean_leanrt();
+        }
         if self.statistic.num_solve % 100 == 1 {
             self.simplify();
         }
@@ -211,6 +214,9 @@ impl Solver {
     ) -> SatResult<'_> {
         self.new_round(Some(domain));
         self.statistic.num_solve += 1;
+        if self.statistic.num_solve % 1000 == 1 {
+            self.clean_leanrt();
+        }
         if self.statistic.num_solve % 100 == 1 {
             self.simplify();
         }
@@ -243,6 +249,9 @@ impl Solver {
             self.new_round(None::<std::option::IntoIter<Var>>);
         };
         self.statistic.num_solve += 1;
+        if self.statistic.num_solve % 1000 == 1 {
+            self.clean_leanrt();
+        }
         if self.statistic.num_solve % 100 == 1 {
             self.simplify();
         }
