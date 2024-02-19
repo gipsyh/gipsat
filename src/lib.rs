@@ -41,6 +41,7 @@ pub struct Solver {
     unsat_core: LitSet,
 
     domain: Domain,
+    temporary_domain: bool,
     lazy_clauses: Vec<Clause>,
     lazy_temp_lemma: Vec<Clause>,
 
@@ -177,7 +178,9 @@ impl Solver {
     }
 
     fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>) {
-        self.domain.disable_local();
+        if !self.temporary_domain {
+            self.domain.disable_local();
+        }
         self.clean_temporary();
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
@@ -203,8 +206,10 @@ impl Solver {
             self.add_clause_inner(&lc, ClauseKind::TempLemma);
         }
 
-        if let Some(domain) = domain {
-            self.domain.enable_local(domain, self.ts.as_ref().unwrap());
+        if !self.temporary_domain {
+            if let Some(domain) = domain {
+                self.domain.enable_local(domain, self.ts.as_ref().unwrap());
+            }
         }
 
         self.vsids.clear();
@@ -284,6 +289,16 @@ impl Solver {
         } else {
             SatResult::Unsat(Conflict { solver: self })
         }
+    }
+
+    pub fn set_domain(&mut self, domain: &[Lit]) {
+        self.domain
+            .enable_local(domain.iter().map(|l| l.var()), self.ts.as_ref().unwrap());
+        self.temporary_domain = true;
+    }
+
+    pub fn unset_domain(&mut self) {
+        self.temporary_domain = false;
     }
 
     /// # Safety
