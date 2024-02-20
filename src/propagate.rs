@@ -45,20 +45,18 @@ impl Solver {
             let p = self.trail[self.propagated];
             self.propagated += 1;
 
-            let mut new = 0;
-            for w in 0..self.watchers.wtrs[p].len() {
+            let mut w = 0;
+            while w < self.watchers.wtrs[p].len() {
                 let watchers = &mut self.watchers.wtrs[p];
                 let blocker = watchers[w].blocker;
                 match self.value[blocker] {
                     Some(true) => {
-                        watchers[new] = watchers[w];
-                        new += 1;
+                        w += 1;
                         continue;
                     }
                     None => {
                         if !propagate_full && !self.domain.has(blocker) {
-                            watchers[new] = watchers[w];
-                            new += 1;
+                            w += 1;
                             continue;
                         }
                     }
@@ -73,14 +71,14 @@ impl Solver {
                 let new_watcher = Watcher::new(cid, cref[0]);
                 match self.value[cref[0]] {
                     Some(true) => {
-                        watchers[new] = new_watcher;
-                        new += 1;
+                        watchers[w] = new_watcher;
+                        w += 1;
                         continue;
                     }
                     None => {
                         if !propagate_full && !self.domain.has(cref[0]) {
-                            watchers[new] = new_watcher;
-                            new += 1;
+                            watchers[w] = new_watcher;
+                            w += 1;
                             continue;
                         }
                     }
@@ -91,26 +89,20 @@ impl Solver {
                     .position(|l| !matches!(self.value[*l], Some(false)));
                 if let Some(new_lit) = new_lit {
                     cref.swap(1, new_lit + 2);
+                    watchers.swap_remove(w);
                     self.watchers.wtrs[!cref[1]].push(new_watcher);
                 } else {
-                    watchers[new] = new_watcher;
-                    new += 1;
+                    watchers[w] = new_watcher;
+                    w += 1;
                     if let Some(false) = self.value[cref[0]] {
-                        for i in w + 1..watchers.len() {
-                            watchers[new] = watchers[i];
-                            new += 1;
-                        }
-                        watchers.truncate(new);
                         return Some(cid);
-                    } else {
-                        if propagate_full || self.domain.has(cref[0]) {
-                            let assign = cref[0];
-                            self.assign(assign, Some(cid));
-                        }
+                    }
+                    if propagate_full || self.domain.has(cref[0]) {
+                        let assign = cref[0];
+                        self.assign(assign, Some(cid));
                     }
                 }
             }
-            self.watchers.wtrs[p].truncate(new);
         }
         None
     }
