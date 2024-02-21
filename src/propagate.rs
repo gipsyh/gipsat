@@ -55,7 +55,7 @@ impl Solver {
                         continue;
                     }
                     None => {
-                        if !propagate_full && !self.domain.has(blocker) {
+                        if !propagate_full && !self.domain.has(blocker.var()) {
                             w += 1;
                             continue;
                         }
@@ -76,7 +76,7 @@ impl Solver {
                         continue;
                     }
                     None => {
-                        if !propagate_full && !self.domain.has(cref[0]) {
+                        if !propagate_full && !self.domain.has(cref[0].var()) {
                             watchers[w] = new_watcher;
                             w += 1;
                             continue;
@@ -97,7 +97,7 @@ impl Solver {
                     if let Some(false) = self.value[cref[0]] {
                         return Some(cid);
                     }
-                    if propagate_full || self.domain.has(cref[0]) {
+                    if propagate_full || self.domain.has(cref[0].var()) {
                         let assign = cref[0];
                         self.assign(assign, Some(cid));
                     }

@@ -42,11 +42,11 @@ impl Domain {
     }
 
     #[inline]
-    pub fn has<V: Into<Var>>(&self, var: V) -> bool {
+    pub fn has(&self, var: Var) -> bool {
         if self.enable_local {
-            self.local[var.into()] == self.local_stamp
+            self.local[var] == self.local_stamp
         } else {
-            self.global[var.into()]
+            self.global[var]
         }
     }
 
