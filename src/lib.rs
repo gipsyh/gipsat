@@ -188,6 +188,9 @@ impl Solver {
                 self.value[bt] = None;
                 self.value[!bt] = None;
                 self.phase_saving[bt] = Some(bt);
+                if self.temporary_domain {
+                    self.vsids.push(bt.var());
+                }
             }
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
@@ -210,12 +213,11 @@ impl Solver {
             if let Some(domain) = domain {
                 self.domain.enable_local(domain, self.ts.as_ref().unwrap());
             }
-        }
-
-        self.vsids.clear();
-        for d in self.domain.domains() {
-            if self.value[d.lit()].is_none() {
-                self.vsids.push(*d);
+            self.vsids.clear();
+            for d in self.domain.domains() {
+                if self.value[d.lit()].is_none() {
+                    self.vsids.push(*d);
+                }
             }
         }
     }
@@ -295,6 +297,23 @@ impl Solver {
         self.domain
             .enable_local(domain.iter().map(|l| l.var()), self.ts.as_ref().unwrap());
         self.temporary_domain = true;
+        self.clean_temporary();
+        if !self.pos_in_trail.is_empty() {
+            while self.trail.len() > self.pos_in_trail[0] {
+                let bt = self.trail.pop().unwrap();
+                self.value[bt] = None;
+                self.value[!bt] = None;
+                self.phase_saving[bt] = Some(bt);
+            }
+            self.propagated = self.pos_in_trail[0];
+            self.pos_in_trail.truncate(0);
+        }
+        self.vsids.clear();
+        for d in self.domain.domains() {
+            if self.value[d.lit()].is_none() {
+                self.vsids.push(*d);
+            }
+        }
     }
 
     pub fn unset_domain(&mut self) {
