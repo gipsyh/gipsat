@@ -43,7 +43,6 @@ pub struct Solver {
     domain: Domain,
     temporary_domain: bool,
     lazy_clauses: Vec<Clause>,
-    lazy_temp_lemma: Vec<Clause>,
 
     ts: Option<TransitionSystem>,
 
@@ -150,26 +149,6 @@ impl Solver {
         self.lazy_clauses.push(Clause::from(clause));
     }
 
-    pub fn add_temp_lemma(&mut self, clause: &[Lit]) {
-        self.lazy_temp_lemma.push(Clause::from(clause));
-    }
-
-    pub fn cleanup_temp_lemma(&mut self) {
-        self.domain.disable_local();
-        self.clean_temporary();
-        if !self.pos_in_trail.is_empty() {
-            while self.trail.len() > self.pos_in_trail[0] {
-                let bt = self.trail.pop().unwrap();
-                self.value[bt] = None;
-                self.value[!bt] = None;
-                self.phase_saving[bt] = Some(bt);
-            }
-            self.propagated = self.pos_in_trail[0];
-            self.pos_in_trail.truncate(0);
-        }
-        self.clean_temp_lemma();
-    }
-
     pub fn add_lemma(&mut self, lemma: &[Lit]) {
         for l in lemma.iter() {
             if !self.domain.lemma[l.var()] {
@@ -206,10 +185,6 @@ impl Solver {
 
         while let Some(lc) = self.lazy_clauses.pop() {
             self.add_clause_inner(&lc, ClauseKind::Origin);
-        }
-
-        while let Some(lc) = self.lazy_temp_lemma.pop() {
-            self.add_clause_inner(&lc, ClauseKind::TempLemma);
         }
 
         if !self.temporary_domain {

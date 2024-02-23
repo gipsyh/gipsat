@@ -130,15 +130,14 @@ impl Solver {
             // self.cdb.bump(conflict);
             let cref = &self.cdb[conflict];
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
-            for l in begin..cref.len() {
-                let lit = cref[l];
-                if !self.analyze.seen(lit) && self.level[lit] > 0 {
+            for lit in cref.iter().skip(begin) {
+                if !self.analyze.seen(*lit) && self.level[*lit] > 0 {
                     self.vsids.bump(lit.var());
-                    self.analyze[lit] = Mark::Seen;
-                    if self.level[lit] >= self.highest_level() {
+                    self.analyze[*lit] = Mark::Seen;
+                    if self.level[*lit] >= self.highest_level() {
                         path += 1;
                     } else {
-                        learnt.push(lit);
+                        learnt.push(*lit);
                     }
                 }
             }
