@@ -64,9 +64,12 @@ impl Solver {
         self.args = args
     }
 
-    pub fn set_ts(&mut self, cnf: &[Clause], dep: &VarMap<Vec<Var>>) {
+    pub fn set_ts(&mut self, num_var: usize, cnf: &[Clause], dep: &VarMap<Vec<Var>>) {
+        while self.num_var() < num_var {
+            self.new_var();
+        }
         for cls in cnf.iter() {
-            self.add_clause(cls);
+            self.add_clause_inner(cls, ClauseKind::Origin);
         }
         self.ts = Some(TransitionSystem::new(dep.clone()))
     }
@@ -140,7 +143,7 @@ impl Solver {
     }
 
     pub fn add_clause_direct(&mut self, clause: &[Lit]) {
-        self.add_clause(clause);
+        self.add_clause_inner(clause, ClauseKind::Origin);
     }
 
     pub fn add_clause(&mut self, clause: &[Lit]) {
