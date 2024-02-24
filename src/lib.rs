@@ -85,7 +85,7 @@ impl Solver {
         self.phase_saving.push(None);
         self.analyze.new_var();
         self.unsat_core.new_var();
-        self.domain.new_var();
+        self.domain.reserve(res);
         res
     }
 
@@ -117,10 +117,7 @@ impl Solver {
             None => return,
         };
         for l in clause.iter() {
-            if !self.domain.global[l.var()] {
-                self.domain.global[l.var()] = true;
-                self.domain.global_marks.push(l.var());
-            }
+            self.domain.global.mark(l.var());
             if let Some(act) = self.constrain_act {
                 if act.var() == l.var() {
                     kind = ClauseKind::Temporary;
@@ -151,10 +148,7 @@ impl Solver {
 
     pub fn add_lemma(&mut self, lemma: &[Lit]) {
         for l in lemma.iter() {
-            if !self.domain.lemma[l.var()] {
-                self.domain.lemma[l.var()] = true;
-                self.domain.lemma_marks.push(l.var());
-            }
+            self.domain.lemma.mark(l.var());
         }
         self.add_clause(lemma);
     }
@@ -243,17 +237,19 @@ impl Solver {
         domain: bool,
     ) -> SatResult<'_> {
         if self.constrain_act.is_none() {
-            self.new_round(None::<std::option::IntoIter<Var>>);
-            self.constrain_act = Some(self.new_var().lit());
+            let constrain_act = self.new_var();
+            self.constrain_act = Some(constrain_act.lit());
+            self.domain.global.mark(constrain_act);
         }
         let act = self.constrain_act.unwrap();
         let mut assumption = Cube::new();
         assumption.extend_from_slice(assump);
         assumption.push(act);
+        let cc = constrain.clone();
         constrain.push(!act);
         self.lazy_clauses.push(constrain);
         if domain {
-            self.new_round(Some(assump.iter().map(|l| l.var())));
+            self.new_round(Some(assump.iter().chain(cc.iter()).map(|l| l.var())));
         } else {
             self.new_round(None::<std::option::IntoIter<Var>>);
         };
@@ -271,9 +267,9 @@ impl Solver {
         }
     }
 
-    pub fn set_domain(&mut self, domain: &[Lit]) {
+    pub fn set_domain(&mut self, domain: impl Iterator<Item = Lit>) {
         self.domain
-            .enable_local(domain.iter().map(|l| l.var()), self.ts.as_ref().unwrap());
+            .enable_local(domain.map(|l| l.var()), self.ts.as_ref().unwrap());
         self.temporary_domain = true;
         self.clean_temporary();
         if !self.pos_in_trail.is_empty() {

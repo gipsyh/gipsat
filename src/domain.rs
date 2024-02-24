@@ -1,11 +1,9 @@
-use crate::ts::TransitionSystem;
+use crate::{ts::TransitionSystem, utils::VarMark};
 use logic_form::{Var, VarMap};
 
 pub struct Domain {
-    pub global: VarMap<bool>,
-    pub global_marks: Vec<Var>,
-    pub lemma: VarMap<bool>,
-    pub lemma_marks: Vec<Var>,
+    pub global: VarMark,
+    pub lemma: VarMark,
     local_stamp: u32,
     local: VarMap<u32>,
     local_marks: Vec<Var>,
@@ -13,10 +11,10 @@ pub struct Domain {
 }
 
 impl Domain {
-    pub fn new_var(&mut self) {
-        self.global.push(false);
-        self.lemma.push(false);
-        self.local.push(0);
+    pub fn reserve(&mut self, var: Var) {
+        self.global.reserve(var);
+        self.lemma.reserve(var);
+        self.local.reserve(var);
     }
 
     pub fn enable_local(&mut self, domain: impl Iterator<Item = Var>, ts: &TransitionSystem) {
@@ -28,7 +26,7 @@ impl Domain {
             &mut self.local,
             &mut self.local_marks,
         );
-        for l in self.lemma_marks.iter() {
+        for l in self.lemma.marks().iter() {
             if self.local[*l] != self.local_stamp {
                 self.local[*l] = self.local_stamp;
                 self.local_marks.push(*l);
@@ -46,7 +44,7 @@ impl Domain {
         if self.enable_local {
             self.local[var] == self.local_stamp
         } else {
-            self.global[var]
+            self.global.has(var)
         }
     }
 
@@ -54,7 +52,7 @@ impl Domain {
         if self.enable_local {
             self.local_marks.iter()
         } else {
-            self.global_marks.iter()
+            self.global.marks().iter()
         }
     }
 }
@@ -63,9 +61,7 @@ impl Default for Domain {
     fn default() -> Self {
         Self {
             global: Default::default(),
-            global_marks: Default::default(),
             lemma: Default::default(),
-            lemma_marks: Default::default(),
             local_stamp: 1,
             local: Default::default(),
             local_marks: Default::default(),
