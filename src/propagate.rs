@@ -46,7 +46,7 @@ impl Solver {
             self.propagated += 1;
 
             let mut w = 0;
-            while w < self.watchers.wtrs[p].len() {
+            'next_cls: while w < self.watchers.wtrs[p].len() {
                 let watchers = &mut self.watchers.wtrs[p];
                 let blocker = watchers[w].blocker;
                 match self.value[blocker] {
@@ -84,24 +84,25 @@ impl Solver {
                     }
                     Some(false) => (),
                 }
-                let new_lit = cref[2..]
-                    .iter()
-                    .position(|l| !matches!(self.value[*l], Some(false)));
-                if let Some(new_lit) = new_lit {
-                    cref.swap(1, new_lit + 2);
-                    watchers.swap_remove(w);
-                    self.watchers.wtrs[!cref[1]].push(new_watcher);
-                } else {
-                    watchers[w] = new_watcher;
-                    w += 1;
-                    if let Some(false) = self.value[cref[0]] {
-                        return Some(cid);
-                    }
-                    if propagate_full || self.domain.has(cref[0].var()) {
-                        let assign = cref[0];
-                        self.assign(assign, Some(cid));
+
+                for i in 2..cref.len() {
+                    let lit = cref[i];
+                    if !matches!(self.value[lit], Some(false)) {
+                        cref.swap(1, i);
+                        watchers.swap_remove(w);
+                        self.watchers.wtrs[!cref[1]].push(new_watcher);
+                        continue 'next_cls;
                     }
                 }
+                watchers[w] = new_watcher;
+                if let Some(false) = self.value[cref[0]] {
+                    return Some(cid);
+                }
+                if propagate_full || self.domain.has(cref[0].var()) {
+                    let assign = cref[0];
+                    self.assign(assign, Some(cid));
+                }
+                w += 1;
             }
         }
         None
