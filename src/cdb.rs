@@ -110,18 +110,18 @@ impl Default for Allocator {
 }
 
 pub enum ClauseKind {
-    Origin,
+    Trans,
+    Lemma,
     Learnt,
     Temporary,
-    TempLemma,
 }
 
 pub struct ClauseDB {
     allocator: Allocator,
-    origin: Vec<usize>,
+    trans: Vec<usize>,
+    lemma: Vec<usize>,
     learnt: Vec<usize>,
     temporary: Vec<usize>,
-    temp_lemma: Vec<usize>,
     act_inc: f32,
 }
 
@@ -137,10 +137,10 @@ impl ClauseDB {
     pub fn alloc(&mut self, clause: &[Lit], kind: ClauseKind) -> usize {
         let cid = self.allocator.alloc(clause);
         match kind {
-            ClauseKind::Origin => self.origin.push(cid),
+            ClauseKind::Trans => self.trans.push(cid),
+            ClauseKind::Lemma => self.lemma.push(cid),
             ClauseKind::Learnt => self.learnt.push(cid),
             ClauseKind::Temporary => self.temporary.push(cid),
-            ClauseKind::TempLemma => self.temp_lemma.push(cid),
         }
         cid
     }
@@ -148,16 +148,6 @@ impl ClauseDB {
     #[inline]
     pub fn free(&mut self, cid: usize) {
         self.allocator.free(cid)
-    }
-
-    #[inline]
-    pub fn num_learnt(&self) -> usize {
-        self.learnt.len()
-    }
-
-    #[inline]
-    pub fn num_origin(&self) -> usize {
-        self.origin.len()
     }
 
     // #[inline]
@@ -188,10 +178,10 @@ impl Default for ClauseDB {
     fn default() -> Self {
         Self {
             allocator: Default::default(),
-            origin: Default::default(),
+            lemma: Default::default(),
+            trans: Default::default(),
             learnt: Default::default(),
             temporary: Default::default(),
-            temp_lemma: Default::default(),
             act_inc: 1.0,
         }
     }
@@ -260,18 +250,6 @@ impl Solver {
         }
     }
 
-    pub fn clean_temp_lemma(&mut self) {
-        assert!(self.highest_level() == 0);
-        for l in take(&mut self.cdb.temp_lemma) {
-            let cls = &self.cdb[l];
-            if self.locked(cls) {
-                self.cdb.origin.push(l);
-            } else {
-                self.remove_clause(l);
-            }
-        }
-    }
-
     pub fn verify(&mut self) -> bool {
         // for i in 0..self.clauses.len() {
         //     if !self.clauses[i].removed()
@@ -319,8 +297,10 @@ impl Solver {
         assert!(self.propagate().is_none());
         let leant = take(&mut self.cdb.learnt);
         self.cdb.learnt = self.simplify_clauses(leant);
-        let origin = take(&mut self.cdb.origin);
-        self.cdb.origin = self.simplify_clauses(origin);
+        let origin = take(&mut self.cdb.trans);
+        self.cdb.trans = self.simplify_clauses(origin);
+        let origin = take(&mut self.cdb.lemma);
+        self.cdb.lemma = self.simplify_clauses(origin);
         self.garbage_collect();
     }
 
@@ -335,7 +315,11 @@ impl Solver {
                 }
             }
 
-            for o in self.cdb.origin.iter_mut() {
+            for o in self.cdb.trans.iter_mut() {
+                *o = self.cdb.allocator.reloc(*o, &mut to)
+            }
+
+            for o in self.cdb.lemma.iter_mut() {
                 *o = self.cdb.allocator.reloc(*o, &mut to)
             }
 
@@ -344,10 +328,6 @@ impl Solver {
             }
 
             for l in self.cdb.temporary.iter_mut() {
-                *l = self.cdb.allocator.reloc(*l, &mut to)
-            }
-
-            for l in self.cdb.temp_lemma.iter_mut() {
                 *l = self.cdb.allocator.reloc(*l, &mut to)
             }
 

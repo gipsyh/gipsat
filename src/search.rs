@@ -40,16 +40,10 @@ impl Solver {
     pub fn search(&mut self, assumption: &[Lit]) -> bool {
         'ml: loop {
             if let Some(conflict) = self.propagate() {
-                if self.args.verbose {
-                    println!("{:?}", &self.cdb[conflict]);
-                }
                 if self.highest_level() == 0 {
                     return false;
                 }
                 let (learnt, btl) = self.analyze(conflict);
-                if self.args.verbose {
-                    dbg!(btl);
-                }
                 self.backtrack(btl);
                 if learnt.len() == 1 {
                     assert!(btl == 0);

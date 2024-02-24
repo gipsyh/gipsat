@@ -4,9 +4,9 @@ use logic_form::{Var, VarMap};
 pub struct Domain {
     pub global: VarMark,
     pub lemma: VarMark,
-    local_stamp: u32,
-    local: VarMap<u32>,
-    local_marks: Vec<Var>,
+    pub local_stamp: u32,
+    pub local: VarMap<u32>,
+    pub local_marks: Vec<Var>,
     enable_local: bool,
 }
 

@@ -1,6 +1,5 @@
 mod analyze;
 mod cdb;
-mod command;
 mod domain;
 mod others;
 mod propagate;
@@ -10,8 +9,6 @@ mod statistic;
 mod ts;
 mod utils;
 mod vsids;
-
-pub use command::Args;
 
 use analyze::Analyze;
 use cdb::{ClauseDB, ClauseKind};
@@ -26,7 +23,6 @@ use vsids::Vsids;
 #[derive(Default)]
 pub struct Solver {
     name: String,
-    args: Args,
     cdb: ClauseDB,
     watchers: Watchers,
     value: LitMap<Option<bool>>,
@@ -43,6 +39,8 @@ pub struct Solver {
     domain: Domain,
     temporary_domain: bool,
     lazy_clauses: Vec<Clause>,
+    lazy_lemma: Vec<Clause>,
+    lazy_temporary: Vec<Clause>,
 
     ts: Option<TransitionSystem>,
 
@@ -59,16 +57,12 @@ impl Solver {
         }
     }
 
-    pub fn set_args(&mut self, args: Args) {
-        self.args = args
-    }
-
     pub fn set_ts(&mut self, num_var: usize, cnf: &[Clause], dep: &VarMap<Vec<Var>>) {
         while self.num_var() < num_var {
             self.new_var();
         }
         for cls in cnf.iter() {
-            self.add_clause_inner(cls, ClauseKind::Origin);
+            self.add_clause_inner(cls, ClauseKind::Trans);
         }
         self.ts = Some(TransitionSystem::new(dep.clone()))
     }
@@ -139,7 +133,7 @@ impl Solver {
     }
 
     pub fn add_clause_direct(&mut self, clause: &[Lit]) {
-        self.add_clause_inner(clause, ClauseKind::Origin);
+        self.add_clause_inner(clause, ClauseKind::Trans);
     }
 
     pub fn add_clause(&mut self, clause: &[Lit]) {
@@ -150,7 +144,7 @@ impl Solver {
         for l in lemma.iter() {
             self.domain.lemma.mark(l.var());
         }
-        self.add_clause(lemma);
+        self.lazy_lemma.push(Clause::from(lemma));
     }
 
     fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>) {
@@ -178,12 +172,25 @@ impl Solver {
         // dbg!(self.cdb.num_origin());
 
         while let Some(lc) = self.lazy_clauses.pop() {
-            self.add_clause_inner(&lc, ClauseKind::Origin);
+            self.add_clause_inner(&lc, ClauseKind::Trans);
+        }
+
+        while let Some(lc) = self.lazy_lemma.pop() {
+            self.add_clause_inner(&lc, ClauseKind::Lemma);
+        }
+
+        while let Some(lc) = self.lazy_temporary.pop() {
+            self.add_clause_inner(&lc, ClauseKind::Temporary);
         }
 
         if !self.temporary_domain {
             if let Some(domain) = domain {
                 self.domain.enable_local(domain, self.ts.as_ref().unwrap());
+                assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
+                self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
+                self.domain
+                    .local_marks
+                    .push(self.constrain_act.unwrap().var());
             }
             self.vsids.clear();
             for d in self.domain.domains() {
@@ -247,7 +254,7 @@ impl Solver {
         assumption.push(act);
         let cc = constrain.clone();
         constrain.push(!act);
-        self.lazy_clauses.push(constrain);
+        self.lazy_temporary.push(constrain);
         if domain {
             self.new_round(Some(assump.iter().chain(cc.iter()).map(|l| l.var())));
         } else {
@@ -270,6 +277,11 @@ impl Solver {
     pub fn set_domain(&mut self, domain: impl Iterator<Item = Lit>) {
         self.domain
             .enable_local(domain.map(|l| l.var()), self.ts.as_ref().unwrap());
+        assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
+        self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
+        self.domain
+            .local_marks
+            .push(self.constrain_act.unwrap().var());
         self.temporary_domain = true;
         self.clean_temporary();
         if !self.pos_in_trail.is_empty() {
