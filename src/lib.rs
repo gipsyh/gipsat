@@ -291,16 +291,19 @@ impl Solver {
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
         }
-        self.vsids.clear();
-        for d in self.domain.domains() {
-            if self.value[d.lit()].is_none() {
-                self.vsids.push(*d);
-            }
-        }
+        // self.vsids.clear();
+        // for d in self.domain.domains() {
+        //     if self.value[d.lit()].is_none() {
+        //         self.vsids.push(*d);
+        //     }
+        // }
+        self.vsids
+            .enable_fast(self.domain.domains().copied().collect());
     }
 
     pub fn unset_domain(&mut self) {
         self.temporary_domain = false;
+        self.vsids.disable_fast();
     }
 
     /// # Safety

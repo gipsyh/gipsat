@@ -7,6 +7,9 @@ pub struct Vsids {
     heap: Vec<Var>,
     pos: VarMap<Option<usize>>,
     act_inc: f64,
+
+    bucket: Bucket,
+    fast: bool,
 }
 
 impl Default for Vsids {
@@ -16,6 +19,8 @@ impl Default for Vsids {
             heap: Default::default(),
             pos: Default::default(),
             act_inc: 1.0,
+            bucket: Default::default(),
+            fast: false,
         }
     }
 }
@@ -23,6 +28,7 @@ impl Default for Vsids {
 impl Vsids {
     pub fn new_var(&mut self) {
         self.pos.push(None);
+        self.bucket.new_var();
         self.activity.push(f64::default());
     }
 
@@ -79,6 +85,9 @@ impl Vsids {
 
     #[inline]
     pub fn push(&mut self, var: Var) {
+        if self.fast {
+            return self.bucket.push(var);
+        }
         if self.pos[var].is_some() {
             return;
         }
@@ -90,6 +99,9 @@ impl Vsids {
 
     #[inline]
     pub fn pop(&mut self) -> Option<Var> {
+        if self.fast {
+            return self.bucket.pop();
+        }
         if self.heap.is_empty() {
             return None;
         }
@@ -121,6 +133,83 @@ impl Vsids {
     #[inline]
     pub fn decay(&mut self) {
         self.act_inc *= 1.0 / Self::DECAY
+    }
+
+    pub fn enable_fast(&mut self, vars: Vec<Var>) {
+        assert!(!self.fast);
+        self.clear();
+        self.fast = true;
+        self.bucket.create(vars, &self.activity);
+    }
+
+    pub fn disable_fast(&mut self) {
+        self.fast = false;
+        self.bucket.clear();
+    }
+}
+
+#[derive(Default)]
+pub struct Bucket {
+    buckets: Vec<Vec<Var>>,
+    var_bucket: VarMap<usize>,
+    in_bucket: VarMap<bool>,
+    head: usize,
+}
+
+impl Bucket {
+    pub fn create(&mut self, mut vars: Vec<Var>, activity: &VarMap<f64>) {
+        self.clear();
+        vars.sort_unstable_by(|a, b| activity[*b].partial_cmp(&activity[*a]).unwrap());
+        let num_bucket = (usize::BITS - vars.len().leading_zeros()) as usize;
+        self.buckets.resize_with(num_bucket, Default::default);
+        self.head = 0;
+        for i in 0..vars.len() {
+            let bucket: usize = (usize::BITS - (i + 1).leading_zeros() - 1) as usize;
+            self.var_bucket[vars[i]] = bucket;
+            self.buckets[bucket].push(vars[i]);
+            assert!(!self.in_bucket[vars[i]]);
+            self.in_bucket[vars[i]] = true;
+        }
+    }
+
+    pub fn new_var(&mut self) {
+        self.var_bucket.push(0);
+        self.in_bucket.push(false);
+    }
+
+    #[inline]
+    pub fn push(&mut self, var: Var) {
+        if self.in_bucket[var] {
+            return;
+        }
+        let bucket = self.var_bucket[var];
+        if self.head > bucket {
+            self.head = bucket;
+        }
+        self.buckets[bucket].push(var);
+        self.in_bucket[var] = true;
+    }
+
+    #[inline]
+    pub fn pop(&mut self) -> Option<Var> {
+        while self.head < self.buckets.len() {
+            if !self.buckets[self.head].is_empty() {
+                let var = self.buckets[self.head].pop().unwrap();
+                self.in_bucket[var] = false;
+                return Some(var);
+            }
+            self.head += 1;
+        }
+        None
+    }
+
+    pub fn clear(&mut self) {
+        while self.head < self.buckets.len() {
+            while let Some(var) = self.buckets[self.head].pop() {
+                self.in_bucket[var] = false;
+            }
+            self.head += 1;
+        }
     }
 }
 
