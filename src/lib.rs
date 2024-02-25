@@ -207,7 +207,7 @@ impl Solver {
         if self.statistic.num_solve % 1000 == 1 {
             self.clean_leanrt();
         }
-        if self.statistic.num_solve % 100 == 1 {
+        if self.statistic.num_solve % 1000 == 1 {
             self.simplify();
         }
         if self.search(assumption) {
@@ -227,7 +227,7 @@ impl Solver {
         if self.statistic.num_solve % 1000 == 1 {
             self.clean_leanrt();
         }
-        if self.statistic.num_solve % 100 == 1 {
+        if self.statistic.num_solve % 1000 == 1 {
             self.simplify();
         }
         if self.search(assumption) {
@@ -264,7 +264,7 @@ impl Solver {
         if self.statistic.num_solve % 1000 == 1 {
             self.clean_leanrt();
         }
-        if self.statistic.num_solve % 100 == 1 {
+        if self.statistic.num_solve % 1000 == 1 {
             self.simplify();
         }
         if self.search(&assumption) {
