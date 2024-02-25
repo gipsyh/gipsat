@@ -8,8 +8,8 @@ pub struct Vsids {
     pos: VarMap<Option<usize>>,
     act_inc: f64,
 
-    bucket: Bucket,
-    fast: bool,
+    pub bucket: Bucket,
+    pub fast: bool,
 }
 
 impl Default for Vsids {
@@ -135,11 +135,12 @@ impl Vsids {
         self.act_inc *= 1.0 / Self::DECAY
     }
 
-    pub fn enable_fast(&mut self, vars: Vec<Var>) {
+    pub fn enable_fast(&mut self, mut vars: Vec<Var>) {
         assert!(!self.fast);
         self.clear();
+        vars.sort_unstable_by(|a, b| self.activity[*b].partial_cmp(&self.activity[*a]).unwrap());
         self.fast = true;
-        self.bucket.create(vars, &self.activity);
+        self.bucket.create(vars);
     }
 
     pub fn disable_fast(&mut self) {
@@ -157,9 +158,8 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    pub fn create(&mut self, mut vars: Vec<Var>, activity: &VarMap<f64>) {
+    pub fn create(&mut self, vars: Vec<Var>) {
         self.clear();
-        vars.sort_unstable_by(|a, b| activity[*b].partial_cmp(&activity[*a]).unwrap());
         let num_bucket = (usize::BITS - vars.len().leading_zeros()) as usize;
         self.buckets.resize_with(num_bucket, Default::default);
         self.head = 0;
