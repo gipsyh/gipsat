@@ -206,10 +206,9 @@ impl Solver {
         self.statistic.num_solve += 1;
         if self.statistic.num_solve % 1000 == 1 {
             self.clean_leanrt();
-        }
-        if self.statistic.num_solve % 1000 == 1 {
             self.simplify();
         }
+        self.garbage_collect();
         if self.search(assumption) {
             SatResult::Sat(Model { solver: self })
         } else {
@@ -226,10 +225,9 @@ impl Solver {
         self.statistic.num_solve += 1;
         if self.statistic.num_solve % 1000 == 1 {
             self.clean_leanrt();
-        }
-        if self.statistic.num_solve % 1000 == 1 {
             self.simplify();
         }
+        self.garbage_collect();
         if self.search(assumption) {
             SatResult::Sat(Model { solver: self })
         } else {
@@ -263,10 +261,9 @@ impl Solver {
         self.statistic.num_solve += 1;
         if self.statistic.num_solve % 1000 == 1 {
             self.clean_leanrt();
-        }
-        if self.statistic.num_solve % 1000 == 1 {
             self.simplify();
         }
+        self.garbage_collect();
         if self.search(&assumption) {
             SatResult::Sat(Model { solver: self })
         } else {
