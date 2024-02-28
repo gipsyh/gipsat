@@ -1,8 +1,47 @@
 use crate::{
-    cdb::{CRef, ClauseKind},
+    cdb::{CRef, ClauseKind, CREF_NONE},
     Solver,
 };
-use logic_form::Lit;
+use logic_form::{Lit, LitMap};
+
+#[derive(Default)]
+pub struct Value {
+    data: LitMap<Option<bool>>,
+}
+
+impl Value {
+    pub fn new_var(&mut self) {
+        self.data.push(None);
+        self.data.push(None);
+    }
+
+    #[inline]
+    pub fn v(&self, lit: Lit) -> Option<bool> {
+        self.data[lit]
+    }
+
+    #[inline]
+    pub fn set(&mut self, lit: Lit, v: Option<bool>) {
+        self.data[lit] = v
+    }
+}
+
+// impl Index<Lit> for Value {
+//     type Output = Option<bool>;
+
+//     #[inline]
+//     fn index(&self, index: Lit) -> &Self::Output {
+//         &self.data[index]
+//     }
+// }
+
+// impl IndexMut<Lit> for Value {
+
+//     #[inline]
+//     fn index_mut(&mut self, index: Lit) -> &mut Self::Output {
+//         &mut self.data[index]
+//     }
+// }
 
 impl Solver {
     #[inline]
@@ -11,13 +50,12 @@ impl Solver {
     }
 
     #[inline]
-    pub fn assign(&mut self, lit: Lit, reason: Option<CRef>) {
-        assert!(self.value[lit].is_none() && self.value[!lit].is_none());
+    pub fn assign(&mut self, lit: Lit, reason: CRef) {
         self.trail.push(lit);
-        self.value[lit] = Some(true);
-        self.value[!lit] = Some(false);
+        self.value.set(lit, Some(true));
+        self.value.set(!lit, Some(false));
         self.reason[lit] = reason;
-        self.level[lit] = self.highest_level();
+        self.level[lit] = self.highest_level() as u32;
     }
 
     #[inline]
@@ -31,8 +69,8 @@ impl Solver {
         }
         while self.trail.len() > self.pos_in_trail[level] {
             let bt = self.trail.pop().unwrap();
-            self.value[bt] = None;
-            self.value[!bt] = None;
+            self.value.set(bt, None);
+            self.value.set(!bt, None);
             self.vsids.push(bt.var());
             self.phase_saving[bt] = Some(bt);
         }
@@ -50,7 +88,7 @@ impl Solver {
                 self.backtrack(btl);
                 if learnt.len() == 1 {
                     assert!(btl == 0);
-                    self.assign(learnt[0], None);
+                    self.assign(learnt[0], CREF_NONE);
                 } else {
                     let mut kind = ClauseKind::Learnt;
                     for l in learnt.iter() {
@@ -62,14 +100,14 @@ impl Solver {
                     }
                     let learnt_id = self.attach_clause(&learnt, kind);
                     self.cdb.bump(learnt_id);
-                    self.assign(self.cdb[learnt_id][0], Some(learnt_id));
+                    self.assign(self.cdb[learnt_id][0], learnt_id);
                 }
                 self.vsids.decay();
                 self.cdb.decay();
             } else {
                 while self.highest_level() < assumption.len() {
                     let a = assumption[self.highest_level()];
-                    match self.value[a] {
+                    match self.value.v(a) {
                         Some(true) => self.new_level(),
                         Some(false) => {
                             self.analyze_unsat_core(a);
@@ -77,7 +115,7 @@ impl Solver {
                         }
                         None => {
                             self.new_level();
-                            self.assign(a, None);
+                            self.assign(a, CREF_NONE);
                             continue 'ml;
                         }
                     }

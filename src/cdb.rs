@@ -40,11 +40,13 @@ impl Clause {
 
     #[inline]
     fn get_act(&self) -> f32 {
+        assert!(self.is_learnt());
         unsafe { self.data[self.len() + 1].act }
     }
 
     #[inline]
     fn get_mut_act(&mut self) -> &mut f32 {
+        assert!(self.is_learnt());
         unsafe { &mut self.data[self.len() + 1].act }
     }
 
@@ -68,6 +70,8 @@ impl Index<usize> for Clause {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CRef(u32);
+
+pub const CREF_NONE: CRef = CRef(u32::MAX);
 
 impl From<usize> for CRef {
     fn from(value: usize) -> Self {
@@ -95,22 +99,30 @@ impl Allocator {
     #[inline]
     pub fn get(&mut self, cref: CRef) -> Clause {
         let cref = cref.0 as usize;
-        let len = unsafe { self.data[cref].header.len() };
-        let data: &'static mut [Data] = unsafe { transmute(&mut self.data[cref..cref + 2 + len]) };
+        let mut len = unsafe { self.data[cref].header.len() } + 1;
+        if unsafe { self.data[cref].header.learnt() } {
+            len += 1;
+        }
+        let data: &'static mut [Data] = unsafe { transmute(&mut self.data[cref..cref + len]) };
         Clause { data }
     }
 
     #[inline]
-    fn alloc(&mut self, clause: &[Lit]) -> CRef {
+    fn alloc(&mut self, clause: &[Lit], learnt: bool) -> CRef {
         let cid = self.data.len();
-        let additional = clause.len() + 2;
+        let mut additional = clause.len() + 1;
+        if learnt {
+            additional += 1;
+        }
         self.data.reserve(additional);
         unsafe { self.data.set_len(self.data.len() + additional) };
-        self.data[cid].header = Header::new().with_len(clause.len());
+        self.data[cid].header = Header::new().with_len(clause.len()).with_learnt(learnt);
         for (i, lit) in clause.iter().enumerate() {
             self.data[cid + 1 + i].lit = *lit;
         }
-        self.data[cid + clause.len() + 1].act = 0.0;
+        if learnt {
+            self.data[cid + clause.len() + 1].act = 0.0;
+        }
         CRef::from(cid)
     }
 
@@ -122,7 +134,16 @@ impl Allocator {
     }
 
     pub fn free(&mut self, cref: CRef) {
-        self.wasted += unsafe { self.data[cref.0 as usize].header.len() } + 2;
+        let cref = cref.0 as usize;
+        let mut len = unsafe { self.data[cref].header.len() } + 1;
+        if unsafe { self.data[cref].header.learnt() } {
+            len += 1;
+        }
+        // if self.data.len() == cref + len {
+        //     self.data.truncate(cref)
+        // } else {
+        self.wasted += len
+        // }
     }
 
     pub fn reloc(&mut self, cid: CRef, to: &mut Allocator) -> CRef {
@@ -131,7 +152,10 @@ impl Allocator {
             if self.data[cid].header.reloced() {
                 return CRef(self.data[cid + 1].cid);
             }
-            let len = self.data[cid].header.len() + 2;
+            let mut len = self.data[cid].header.len() + 1;
+            if self.data[cid].header.learnt() {
+                len += 1;
+            }
             let rcid = to.alloc_from(&self.data[cid..cid + len]);
             self.data[cid].header.set_reloced(true);
             self.data[cid + 1].cid = rcid.0;
@@ -171,7 +195,9 @@ impl ClauseDB {
 
     #[inline]
     pub fn alloc(&mut self, clause: &[Lit], kind: ClauseKind) -> CRef {
-        let cid = self.allocator.alloc(clause);
+        let cid = self
+            .allocator
+            .alloc(clause, matches!(kind, ClauseKind::Learnt));
         match kind {
             ClauseKind::Trans => self.trans.push(cid),
             ClauseKind::Lemma => self.lemma.push(cid),
@@ -245,13 +271,11 @@ impl IndexMut<CRef> for ClauseDB {
 }
 
 impl Solver {
+    #[inline]
     fn clause_satisfied(&self, cls: CRef) -> bool {
-        for l in self.cdb[cls].iter() {
-            if let Some(true) = self.value[*l] {
-                return true;
-            }
-        }
-        false
+        self.cdb[cls]
+            .iter()
+            .any(|l| matches!(self.value.v(*l), Some(true)))
     }
 
     pub fn attach_clause(&mut self, clause: &[Lit], kind: ClauseKind) -> CRef {
@@ -273,7 +297,7 @@ impl Solver {
     }
 
     fn locked(&self, cls: &[Lit]) -> bool {
-        matches!(self.value[cls[0]], Some(true)) && self.reason[cls[0]].is_some()
+        matches!(self.value.v(cls[0]), Some(true)) && self.reason[cls[0]] != CREF_NONE
     }
 
     pub fn clean_leanrt(&mut self) {
@@ -318,15 +342,14 @@ impl Solver {
         while i < clauses.len() {
             let cid = clauses[i];
             if self.clause_satisfied(cid) {
-                clauses[i] = *clauses.last().unwrap();
-                clauses.pop();
+                clauses.swap_remove(i);
                 self.remove_clause(cid);
                 continue;
             }
             let mut j = 2;
             let mut cls = self.cdb.get(cid);
             while j < cls.len() {
-                if let Some(false) = self.value[cls[j]] {
+                if let Some(false) = self.value.v(cls[j]) {
                     cls.swap_remove(j);
                     continue;
                 }
@@ -373,8 +396,8 @@ impl Solver {
             }
 
             for l in self.trail.iter() {
-                if let Some(r) = self.reason[*l].as_mut() {
-                    *r = self.cdb.allocator.reloc(*r, &mut to)
+                if self.reason[*l] != CREF_NONE {
+                    self.reason[*l] = self.cdb.allocator.reloc(self.reason[*l], &mut to)
                 }
             }
 

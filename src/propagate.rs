@@ -55,7 +55,7 @@ impl Solver {
             'next_cls: while w < self.watchers.wtrs[p].len() {
                 let watchers = &mut self.watchers.wtrs[p];
                 let blocker = watchers[w].blocker;
-                match self.value[blocker] {
+                match self.value.v(blocker) {
                     Some(true) => {
                         w += 1;
                         continue;
@@ -75,7 +75,7 @@ impl Solver {
                 }
                 assert!(cref[1] == !p);
                 let new_watcher = Watcher::new(cid, cref[0]);
-                match self.value[cref[0]] {
+                match self.value.v(cref[0]) {
                     Some(true) => {
                         watchers[w] = new_watcher;
                         w += 1;
@@ -93,7 +93,7 @@ impl Solver {
 
                 for i in 2..cref.len() {
                     let lit = cref[i];
-                    if !matches!(self.value[lit], Some(false)) {
+                    if !matches!(self.value.v(lit), Some(false)) {
                         cref.swap(1, i);
                         watchers.swap_remove(w);
                         self.watchers.wtrs[!cref[1]].push(new_watcher);
@@ -101,12 +101,12 @@ impl Solver {
                     }
                 }
                 watchers[w] = new_watcher;
-                if let Some(false) = self.value[cref[0]] {
+                if let Some(false) = self.value.v(cref[0]) {
                     return Some(cid);
                 }
                 if propagate_full || self.domain.has(cref[0].var()) {
                     let assign = cref[0];
-                    self.assign(assign, Some(cid));
+                    self.assign(assign, cid);
                 }
                 w += 1;
             }

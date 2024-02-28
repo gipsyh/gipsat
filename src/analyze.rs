@@ -1,4 +1,7 @@
-use crate::{cdb::CRef, Solver};
+use crate::{
+    cdb::{CRef, CREF_NONE},
+    Solver,
+};
 use logic_form::{Clause, Lit, VarMap};
 use std::ops::{Deref, DerefMut};
 
@@ -65,18 +68,18 @@ impl DerefMut for Analyze {
 impl Solver {
     fn lit_redundant(&mut self, lit: Lit) -> bool {
         assert!(matches!(self.analyze[lit], Mark::Unseen | Mark::Seen));
-        if self.reason[lit].is_none() {
+        if self.reason[lit] == CREF_NONE {
             return false;
         }
         let mut stack: Vec<(Lit, usize)> = vec![(lit, 1)];
         'a: while let Some((p, b)) = stack.pop() {
-            let c = self.reason[p].unwrap();
+            let c = self.reason[p];
             for i in b..self.cdb[c].len() {
                 let l = self.cdb[c][i];
                 if self.level[l] == 0 || matches!(self.analyze[l], Mark::Seen | Mark::Removable) {
                     continue;
                 }
-                if self.reason[l].is_none() || matches!(self.analyze[l], Mark::Failed) {
+                if self.reason[l] == CREF_NONE || matches!(self.analyze[l], Mark::Failed) {
                     stack.push((p, 0));
                     for (l, _) in stack {
                         if let Mark::Unseen = self.analyze[l] {
@@ -111,7 +114,7 @@ impl Solver {
     pub fn calculate_lbd(&mut self, learnt: &Clause) -> usize {
         let mut lbd = 0;
         for l in learnt.iter() {
-            let d = self.trail[self.level[*l]];
+            let d = self.trail[self.level[*l] as usize];
             if !self.analyze.seen(d) {
                 lbd += 1;
                 self.analyze.see(d);
@@ -134,7 +137,7 @@ impl Solver {
                 if !self.analyze.seen(*lit) && self.level[*lit] > 0 {
                     self.vsids.bump(lit.var());
                     self.analyze[*lit] = Mark::Seen;
-                    if self.level[*lit] >= self.highest_level() {
+                    if self.level[*lit] >= self.highest_level() as u32 {
                         path += 1;
                     } else {
                         learnt.push(*lit);
@@ -150,7 +153,7 @@ impl Solver {
             if path == 0 {
                 break;
             }
-            conflict = self.reason[self.trail[trail_idx]].unwrap();
+            conflict = self.reason[self.trail[trail_idx]];
         }
         learnt[0] = !resolve_lit.unwrap();
         self.analyze.clear.extend_from_slice(&learnt);
@@ -165,7 +168,7 @@ impl Solver {
             learnt.swap(1, max_idx);
             self.level[learnt[1]]
         };
-        (learnt, btl)
+        (learnt, btl as usize)
     }
 
     pub fn analyze_unsat_core(&mut self, mut p: Lit) {
@@ -178,8 +181,8 @@ impl Solver {
         for i in (self.pos_in_trail[0]..self.trail.len()).rev() {
             p = self.trail[i];
             if self.analyze.seen(p) {
-                if let Some(rc) = self.reason[p] {
-                    for l in &self.cdb[rc][1..] {
+                if self.reason[p] != CREF_NONE {
+                    for l in &self.cdb[self.reason[p]][1..] {
                         if self.level[*l] > 0 {
                             self.analyze.see(*l);
                         }

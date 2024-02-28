@@ -1,4 +1,4 @@
-use crate::Solver;
+use crate::{cdb::CREF_NONE, Solver};
 use logic_form::{Var, VarMap};
 use std::ops::MulAssign;
 
@@ -217,10 +217,10 @@ impl Solver {
     #[inline]
     pub fn decide(&mut self) -> bool {
         while let Some(decide) = self.vsids.pop() {
-            if self.value[decide.lit()].is_none() {
+            if self.value.v(decide.lit()).is_none() {
                 let decide = self.phase_saving[decide].unwrap_or(decide.lit());
                 self.pos_in_trail.push(self.trail.len());
-                self.assign(decide, None);
+                self.assign(decide, CREF_NONE);
                 return true;
             }
         }

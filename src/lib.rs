@@ -11,10 +11,11 @@ mod utils;
 mod vsids;
 
 use analyze::Analyze;
-use cdb::{CRef, ClauseDB, ClauseKind};
+use cdb::{CRef, ClauseDB, ClauseKind, CREF_NONE};
 use domain::Domain;
-use logic_form::{Clause, Cube, Lit, LitMap, LitSet, Var, VarMap};
+use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
+use search::Value;
 use statistic::Statistic;
 use std::fmt::{self, Debug};
 use ts::TransitionSystem;
@@ -25,11 +26,11 @@ pub struct Solver {
     name: String,
     cdb: ClauseDB,
     watchers: Watchers,
-    value: LitMap<Option<bool>>,
+    value: Value,
     trail: Vec<Lit>,
     pos_in_trail: Vec<usize>,
-    level: VarMap<usize>,
-    reason: VarMap<Option<CRef>>,
+    level: VarMap<u32>,
+    reason: VarMap<CRef>,
     propagated: usize,
     vsids: Vsids,
     phase_saving: VarMap<Option<Lit>>,
@@ -69,10 +70,9 @@ impl Solver {
 
     pub fn new_var(&mut self) -> Var {
         let size = self.level.len() + 1;
-        self.value.push(None);
-        self.value.push(None);
+        self.value.new_var();
         self.level.push(0);
-        self.reason.push(None);
+        self.reason.push(CREF_NONE);
         self.watchers.reserve(size);
         let res = Var::new(self.level.len() - 1);
         self.vsids.new_var();
@@ -95,7 +95,7 @@ impl Solver {
             while self.num_var() <= l.var().into() {
                 self.new_var();
             }
-            match self.value[*l] {
+            match self.value.v(*l) {
                 Some(true) => return None,
                 Some(false) => (),
                 None => clause.push(*l),
@@ -120,9 +120,9 @@ impl Solver {
         }
         if clause.len() == 1 {
             assert!(!matches!(kind, ClauseKind::Temporary));
-            match self.value[clause[0]] {
+            match self.value.v(clause[0]) {
                 None => {
-                    self.assign(clause[0], None);
+                    self.assign(clause[0], CREF_NONE);
                     assert!(self.propagate().is_none());
                 }
                 _ => todo!(),
@@ -155,8 +155,8 @@ impl Solver {
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
-                self.value[bt] = None;
-                self.value[!bt] = None;
+                self.value.set(bt, None);
+                self.value.set(!bt, None);
                 self.phase_saving[bt] = Some(bt);
                 if self.temporary_domain {
                     self.vsids.push(bt.var());
@@ -194,7 +194,7 @@ impl Solver {
             }
             self.vsids.clear();
             for d in self.domain.domains() {
-                if self.value[d.lit()].is_none() {
+                if self.value.v(d.lit()).is_none() {
                     self.vsids.push(*d);
                 }
             }
@@ -284,8 +284,8 @@ impl Solver {
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
-                self.value[bt] = None;
-                self.value[!bt] = None;
+                self.value.set(bt, None);
+                self.value.set(!bt, None);
                 self.phase_saving[bt] = Some(bt);
             }
             self.propagated = self.pos_in_trail[0];
@@ -309,8 +309,8 @@ impl Solver {
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
-                self.value[bt] = None;
-                self.value[!bt] = None;
+                self.value.set(bt, None);
+                self.value.set(!bt, None);
                 self.phase_saving[bt] = Some(bt);
             }
             self.propagated = self.pos_in_trail[0];
@@ -349,7 +349,7 @@ pub struct Model<'a> {
 
 impl Model<'_> {
     pub fn lit_value(&self, lit: Lit) -> Option<bool> {
-        self.solver.value[lit]
+        self.solver.value.v(lit)
     }
 }
 
