@@ -127,7 +127,7 @@ impl Solver {
         let mut trail_idx = self.trail.len() - 1;
         let mut resolve_lit = None;
         loop {
-            // self.cdb.bump(conflict);
+            self.cdb.bump(conflict);
             let cref = &self.cdb[conflict];
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
             for lit in cref.iter().skip(begin) {

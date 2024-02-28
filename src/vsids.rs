@@ -163,12 +163,12 @@ impl Bucket {
         let num_bucket = (usize::BITS - vars.len().leading_zeros()) as usize;
         self.buckets.resize_with(num_bucket, Default::default);
         self.head = 0;
-        for i in 0..vars.len() {
+        for (i, var) in vars.into_iter().enumerate() {
             let bucket: usize = (usize::BITS - (i + 1).leading_zeros() - 1) as usize;
-            self.var_bucket[vars[i]] = bucket;
-            self.buckets[bucket].push(vars[i]);
-            assert!(!self.in_bucket[vars[i]]);
-            self.in_bucket[vars[i]] = true;
+            self.var_bucket[var] = bucket;
+            self.buckets[bucket].push(var);
+            assert!(!self.in_bucket[var]);
+            self.in_bucket[var] = true;
         }
     }
 

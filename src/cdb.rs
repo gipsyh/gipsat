@@ -3,12 +3,12 @@ use bitfield_struct::bitfield;
 use logic_form::Lit;
 use std::{
     mem::{take, transmute},
-    ops::{Index, IndexMut},
+    ops::{AddAssign, Index, IndexMut, MulAssign},
 };
 
 #[bitfield(u32)]
 struct Header {
-    removed: bool,
+    learnt: bool,
     reloced: bool,
     #[bits(30)]
     len: usize,
@@ -23,27 +23,47 @@ union Data {
     cid: u32,
 }
 
-pub struct Clause {
-    data: &'static [Data],
+struct Clause {
+    data: &'static mut [Data],
 }
 
 impl Clause {
     #[inline]
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         unsafe { self.data[0].header.len() }
     }
 
     #[inline]
-    pub fn valid(&self) -> bool {
-        !unsafe { self.data[0].header.removed() }
+    fn is_learnt(&self) -> bool {
+        unsafe { self.data[0].header.learnt() }
     }
 
-    // pub fn pop(&mut self) {
-    //     unsafe {
-    //         let len = self.data[0].header.len() - 1;
-    //         self.data[0].header.set_len(len);
-    //     }
-    // }
+    #[inline]
+    fn get_act(&self) -> f32 {
+        unsafe { self.data[self.len() + 1].act }
+    }
+
+    #[inline]
+    fn get_mut_act(&mut self) -> &mut f32 {
+        unsafe { &mut self.data[self.len() + 1].act }
+    }
+
+    fn swap_remove(&mut self, index: usize) {
+        let len = self.len();
+        self.data[1 + index] = self.data[len];
+        unsafe {
+            self.data[0].header.set_len(len - 1);
+        };
+    }
+}
+
+impl Index<usize> for Clause {
+    type Output = Lit;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        unsafe { transmute(&self.data[index + 1]) }
+    }
 }
 
 struct Allocator {
@@ -64,15 +84,23 @@ impl Allocator {
     }
 
     #[inline]
+    pub fn get(&mut self, cid: usize) -> Clause {
+        let len = unsafe { self.data[cid].header.len() };
+        let data: &'static mut [Data] = unsafe { transmute(&mut self.data[cid..cid + 2 + len]) };
+        Clause { data }
+    }
+
+    #[inline]
     fn alloc(&mut self, clause: &[Lit]) -> usize {
         let cid = self.data.len();
         let additional = clause.len() + 2;
         self.data.reserve(additional);
         unsafe { self.data.set_len(self.data.len() + additional) };
         self.data[cid].header = Header::new().with_len(clause.len());
-        for i in 0..clause.len() {
-            self.data[cid + 1 + i].lit = clause[i];
+        for (i, lit) in clause.iter().enumerate() {
+            self.data[cid + 1 + i].lit = *lit;
         }
+        self.data[cid + clause.len() + 1].act = 0.0;
         cid
     }
 
@@ -84,7 +112,6 @@ impl Allocator {
     }
 
     pub fn free(&mut self, cid: usize) {
-        unsafe { self.data[cid].header.set_removed(true) };
         self.wasted += unsafe { self.data[cid].header.len() } + 2;
     }
 
@@ -127,10 +154,8 @@ pub struct ClauseDB {
 
 impl ClauseDB {
     #[inline]
-    pub fn get_clause(&self, cid: usize) -> Clause {
-        let len = unsafe { self.allocator.data[cid].header.len() };
-        let data: &'static [Data] = unsafe { transmute(&self.allocator.data[cid..cid + 2 + len]) };
-        Clause { data }
+    fn get(&mut self, cid: usize) -> Clause {
+        self.allocator.get(cid)
     }
 
     #[inline]
@@ -150,21 +175,22 @@ impl ClauseDB {
         self.allocator.free(cid)
     }
 
-    // #[inline]
-    // pub fn bump(&mut self, cid: usize) {
-    //     if !self.clauses[cid].is_leanrt() {
-    //         return;
-    //     }
-    //     self.clauses[cid].activity += self.act_inc;
-    //     if self.clauses[cid].activity > 1e20 {
-    //         for l in self.learnt.iter() {
-    //             if self.clauses[*l].is_valid() {
-    //                 self.clauses[*l].activity.mul_assign(1e-20);
-    //             }
-    //         }
-    //         self.act_inc *= 1e-20;
-    //     }
-    // }
+    #[inline]
+    pub fn bump(&mut self, cid: usize) {
+        let mut cls = self.get(cid);
+        if !cls.is_learnt() {
+            return;
+        }
+        cls.get_mut_act().add_assign(self.act_inc);
+        if cls.get_act() > 1e20 {
+            for i in 0..self.learnt.len() {
+                let l = self.learnt[i];
+                let mut cls = self.get(l);
+                cls.get_mut_act().mul_assign(1e-20);
+            }
+            self.act_inc *= 1e-20;
+        }
+    }
 
     const DECAY: f32 = 0.999;
 
@@ -206,8 +232,7 @@ impl IndexMut<usize> for ClauseDB {
 }
 
 impl Solver {
-    #[inline]
-    pub fn clause_satisfied(&self, cls: usize) -> bool {
+    fn clause_satisfied(&self, cls: usize) -> bool {
         for l in self.cdb[cls].iter() {
             if let Some(true) = self.value[*l] {
                 return true;
@@ -228,7 +253,7 @@ impl Solver {
         self.cdb.free(cref);
     }
 
-    pub(crate) fn clean_temporary(&mut self) {
+    pub fn clean_temporary(&mut self) {
         while let Some(t) = self.cdb.temporary.pop() {
             self.remove_clause(t);
         }
@@ -239,6 +264,31 @@ impl Solver {
     }
 
     pub fn clean_leanrt(&mut self) {
+        // assert!(self.highest_level() == 0);
+        // if self.cdb.learnt.len() * 4 < self.cdb.trans.len() {
+        //     return;
+        // }
+        // self.cdb.learnt.sort_unstable_by(|a, b| {
+        //     self.cdb
+        //         .allocator
+        //         .get(*b)
+        //         .get_act()
+        //         .partial_cmp(&self.cdb.allocator.get(*a).get_act())
+        //         .unwrap()
+        // });
+        // let learnt = take(&mut self.cdb.learnt);
+        // for i in 0..learnt.len() {
+        //     let l = learnt[i];
+        //     if i > learnt.len() / 2 {
+        //         let cls = &self.cdb[l];
+        //         if !self.locked(cls) && cls.len() > 2 {
+        //             self.remove_clause(l);
+        //             continue;
+        //         }
+        //     }
+        //     self.cdb.learnt.push(l);
+        // }
+
         assert!(self.highest_level() == 0);
         for l in take(&mut self.cdb.learnt) {
             let cls = &self.cdb[l];
@@ -250,53 +300,35 @@ impl Solver {
         }
     }
 
-    pub fn verify(&mut self) -> bool {
-        // for i in 0..self.clauses.len() {
-        //     if !self.clauses[i].removed()
-        //         && !self.clauses[i]
-        //             .iter()
-        //             .any(|l| matches!(self.value[*l], Some(true)))
-        //     {
-        //         return false;
-        //     }
-        // }
-        // true
-        todo!()
-    }
-
-    fn simplify_clauses(&mut self, mut cls: Vec<usize>) -> Vec<usize> {
+    fn simplify_clauses(&mut self, mut clauses: Vec<usize>) -> Vec<usize> {
         let mut i: usize = 0;
-        while i < cls.len() {
-            let cid = cls[i];
+        while i < clauses.len() {
+            let cid = clauses[i];
             if self.clause_satisfied(cid) {
-                cls[i] = *cls.last().unwrap();
-                cls.pop();
+                clauses[i] = *clauses.last().unwrap();
+                clauses.pop();
                 self.remove_clause(cid);
                 continue;
             }
             let mut j = 2;
-            while j < self.cdb[cid].len() {
-                let cls = &mut self.cdb[cid];
+            let mut cls = self.cdb.get(cid);
+            while j < cls.len() {
                 if let Some(false) = self.value[cls[j]] {
-                    cls[j] = *cls.last().unwrap();
-                    unsafe {
-                        let len = self.cdb.allocator.data[cid].header.len() - 1;
-                        self.cdb.allocator.data[cid].header.set_len(len);
-                    };
+                    cls.swap_remove(j);
                     continue;
                 }
                 j += 1;
             }
             i += 1;
         }
-        cls
+        clauses
     }
 
     pub fn clausedb_simplify_satisfied(&mut self) {
         assert!(self.highest_level() == 0);
         assert!(self.propagate().is_none());
-        let leant = take(&mut self.cdb.learnt);
-        self.cdb.learnt = self.simplify_clauses(leant);
+        let learnt = take(&mut self.cdb.learnt);
+        self.cdb.learnt = self.simplify_clauses(learnt);
         let origin = take(&mut self.cdb.trans);
         self.cdb.trans = self.simplify_clauses(origin);
         let origin = take(&mut self.cdb.lemma);
@@ -315,20 +347,16 @@ impl Solver {
                 }
             }
 
-            for o in self.cdb.trans.iter_mut() {
-                *o = self.cdb.allocator.reloc(*o, &mut to)
-            }
+            let cls = self
+                .cdb
+                .trans
+                .iter_mut()
+                .chain(self.cdb.lemma.iter_mut())
+                .chain(self.cdb.learnt.iter_mut())
+                .chain(self.cdb.temporary.iter_mut());
 
-            for o in self.cdb.lemma.iter_mut() {
-                *o = self.cdb.allocator.reloc(*o, &mut to)
-            }
-
-            for l in self.cdb.learnt.iter_mut() {
-                *l = self.cdb.allocator.reloc(*l, &mut to)
-            }
-
-            for l in self.cdb.temporary.iter_mut() {
-                *l = self.cdb.allocator.reloc(*l, &mut to)
+            for c in cls {
+                *c = self.cdb.allocator.reloc(*c, &mut to)
             }
 
             for l in self.trail.iter() {
