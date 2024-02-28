@@ -1,4 +1,7 @@
-use crate::{cdb::ClauseKind, Solver};
+use crate::{
+    cdb::{CRef, ClauseKind},
+    Solver,
+};
 use logic_form::Lit;
 
 impl Solver {
@@ -8,7 +11,7 @@ impl Solver {
     }
 
     #[inline]
-    pub fn assign(&mut self, lit: Lit, reason: Option<usize>) {
+    pub fn assign(&mut self, lit: Lit, reason: Option<CRef>) {
         assert!(self.value[lit].is_none() && self.value[!lit].is_none());
         self.trail.push(lit);
         self.value[lit] = Some(true);

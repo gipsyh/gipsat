@@ -11,7 +11,7 @@ mod utils;
 mod vsids;
 
 use analyze::Analyze;
-use cdb::{ClauseDB, ClauseKind};
+use cdb::{CRef, ClauseDB, ClauseKind};
 use domain::Domain;
 use logic_form::{Clause, Cube, Lit, LitMap, LitSet, Var, VarMap};
 use propagate::Watchers;
@@ -29,7 +29,7 @@ pub struct Solver {
     trail: Vec<Lit>,
     pos_in_trail: Vec<usize>,
     level: VarMap<usize>,
-    reason: VarMap<Option<usize>>,
+    reason: VarMap<Option<CRef>>,
     propagated: usize,
     vsids: Vsids,
     phase_saving: VarMap<Option<Lit>>,

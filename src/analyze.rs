@@ -1,4 +1,4 @@
-use crate::Solver;
+use crate::{cdb::CRef, Solver};
 use logic_form::{Clause, Lit, VarMap};
 use std::ops::{Deref, DerefMut};
 
@@ -121,7 +121,7 @@ impl Solver {
         lbd
     }
 
-    pub fn analyze(&mut self, mut conflict: usize) -> (Clause, usize) {
+    pub fn analyze(&mut self, mut conflict: CRef) -> (Clause, usize) {
         let mut learnt = Clause::from([Lit::default()]);
         let mut path = 0;
         let mut trail_idx = self.trail.len() - 1;

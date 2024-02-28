@@ -1,15 +1,15 @@
-use crate::Solver;
+use crate::{cdb::CRef, Solver};
 use logic_form::{Lit, LitMap};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Watcher {
-    pub clause: usize,
+    pub clause: CRef,
     blocker: Lit,
 }
 
 impl Watcher {
     #[inline]
-    pub fn new(clause: usize, blocker: Lit) -> Self {
+    pub fn new(clause: CRef, blocker: Lit) -> Self {
         Self { clause, blocker }
     }
 }
@@ -26,13 +26,13 @@ impl Watchers {
     }
 
     #[inline]
-    pub fn attach(&mut self, cref: usize, cls: &[Lit]) {
+    pub fn attach(&mut self, cref: CRef, cls: &[Lit]) {
         self.wtrs[!cls[0]].push(Watcher::new(cref, cls[1]));
         self.wtrs[!cls[1]].push(Watcher::new(cref, cls[0]));
     }
 
     #[inline]
-    pub fn detach(&mut self, cref: usize, cls: &[Lit]) {
+    pub fn detach(&mut self, cref: CRef, cls: &[Lit]) {
         for l in &cls[0..2] {
             for i in (0..self.wtrs[!*l].len()).rev() {
                 if self.wtrs[!*l][i].clause == cref {
@@ -45,7 +45,7 @@ impl Watchers {
 }
 
 impl Solver {
-    pub fn propagate(&mut self) -> Option<usize> {
+    pub fn propagate(&mut self) -> Option<CRef> {
         let propagate_full = self.highest_level() == 0;
         while self.propagated < self.trail.len() {
             let p = self.trail[self.propagated];

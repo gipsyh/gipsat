@@ -66,6 +66,15 @@ impl Index<usize> for Clause {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CRef(u32);
+
+impl From<usize> for CRef {
+    fn from(value: usize) -> Self {
+        Self(value as _)
+    }
+}
+
 struct Allocator {
     data: Vec<Data>,
     wasted: usize,
@@ -84,14 +93,15 @@ impl Allocator {
     }
 
     #[inline]
-    pub fn get(&mut self, cid: usize) -> Clause {
-        let len = unsafe { self.data[cid].header.len() };
-        let data: &'static mut [Data] = unsafe { transmute(&mut self.data[cid..cid + 2 + len]) };
+    pub fn get(&mut self, cref: CRef) -> Clause {
+        let cref = cref.0 as usize;
+        let len = unsafe { self.data[cref].header.len() };
+        let data: &'static mut [Data] = unsafe { transmute(&mut self.data[cref..cref + 2 + len]) };
         Clause { data }
     }
 
     #[inline]
-    fn alloc(&mut self, clause: &[Lit]) -> usize {
+    fn alloc(&mut self, clause: &[Lit]) -> CRef {
         let cid = self.data.len();
         let additional = clause.len() + 2;
         self.data.reserve(additional);
@@ -101,29 +111,30 @@ impl Allocator {
             self.data[cid + 1 + i].lit = *lit;
         }
         self.data[cid + clause.len() + 1].act = 0.0;
-        cid
+        CRef::from(cid)
     }
 
-    fn alloc_from(&mut self, from: &[Data]) -> usize {
+    fn alloc_from(&mut self, from: &[Data]) -> CRef {
         let cid = self.data.len();
         self.data.reserve(from.len());
         self.data.extend_from_slice(from);
-        cid
+        cid.into()
     }
 
-    pub fn free(&mut self, cid: usize) {
-        self.wasted += unsafe { self.data[cid].header.len() } + 2;
+    pub fn free(&mut self, cref: CRef) {
+        self.wasted += unsafe { self.data[cref.0 as usize].header.len() } + 2;
     }
 
-    pub fn reloc(&mut self, cid: usize, to: &mut Allocator) -> usize {
+    pub fn reloc(&mut self, cid: CRef, to: &mut Allocator) -> CRef {
+        let cid = cid.0 as usize;
         unsafe {
             if self.data[cid].header.reloced() {
-                return self.data[cid + 1].cid as usize;
+                return CRef(self.data[cid + 1].cid);
             }
             let len = self.data[cid].header.len() + 2;
             let rcid = to.alloc_from(&self.data[cid..cid + len]);
             self.data[cid].header.set_reloced(true);
-            self.data[cid + 1].cid = rcid as u32;
+            self.data[cid + 1].cid = rcid.0;
             rcid
         }
     }
@@ -145,21 +156,21 @@ pub enum ClauseKind {
 
 pub struct ClauseDB {
     allocator: Allocator,
-    trans: Vec<usize>,
-    lemma: Vec<usize>,
-    learnt: Vec<usize>,
-    temporary: Vec<usize>,
+    trans: Vec<CRef>,
+    lemma: Vec<CRef>,
+    learnt: Vec<CRef>,
+    temporary: Vec<CRef>,
     act_inc: f32,
 }
 
 impl ClauseDB {
     #[inline]
-    fn get(&mut self, cid: usize) -> Clause {
-        self.allocator.get(cid)
+    fn get(&mut self, cref: CRef) -> Clause {
+        self.allocator.get(cref)
     }
 
     #[inline]
-    pub fn alloc(&mut self, clause: &[Lit], kind: ClauseKind) -> usize {
+    pub fn alloc(&mut self, clause: &[Lit], kind: ClauseKind) -> CRef {
         let cid = self.allocator.alloc(clause);
         match kind {
             ClauseKind::Trans => self.trans.push(cid),
@@ -171,13 +182,13 @@ impl ClauseDB {
     }
 
     #[inline]
-    pub fn free(&mut self, cid: usize) {
-        self.allocator.free(cid)
+    pub fn free(&mut self, cref: CRef) {
+        self.allocator.free(cref)
     }
 
     #[inline]
-    pub fn bump(&mut self, cid: usize) {
-        let mut cls = self.get(cid);
+    pub fn bump(&mut self, cref: CRef) {
+        let mut cls = self.get(cref);
         if !cls.is_learnt() {
             return;
         }
@@ -213,26 +224,28 @@ impl Default for ClauseDB {
     }
 }
 
-impl Index<usize> for ClauseDB {
+impl Index<CRef> for ClauseDB {
     type Output = [Lit];
 
     #[inline]
-    fn index(&self, index: usize) -> &Self::Output {
+    fn index(&self, index: CRef) -> &Self::Output {
+        let index = index.0 as usize;
         let len = unsafe { self.allocator.data[index].header.len() };
         unsafe { transmute(&self.allocator.data[index + 1..index + 1 + len]) }
     }
 }
 
-impl IndexMut<usize> for ClauseDB {
+impl IndexMut<CRef> for ClauseDB {
     #[inline]
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+    fn index_mut(&mut self, index: CRef) -> &mut Self::Output {
+        let index = index.0 as usize;
         let len = unsafe { self.allocator.data[index].header.len() };
         unsafe { transmute(&mut self.allocator.data[index + 1..index + 1 + len]) }
     }
 }
 
 impl Solver {
-    fn clause_satisfied(&self, cls: usize) -> bool {
+    fn clause_satisfied(&self, cls: CRef) -> bool {
         for l in self.cdb[cls].iter() {
             if let Some(true) = self.value[*l] {
                 return true;
@@ -241,14 +254,14 @@ impl Solver {
         false
     }
 
-    pub fn attach_clause(&mut self, clause: &[Lit], kind: ClauseKind) -> usize {
+    pub fn attach_clause(&mut self, clause: &[Lit], kind: ClauseKind) -> CRef {
         assert!(clause.len() > 1);
         let id = self.cdb.alloc(clause, kind);
         self.watchers.attach(id, &self.cdb[id]);
         id
     }
 
-    fn remove_clause(&mut self, cref: usize) {
+    fn remove_clause(&mut self, cref: CRef) {
         self.watchers.detach(cref, &self.cdb[cref]);
         self.cdb.free(cref);
     }
@@ -300,7 +313,7 @@ impl Solver {
         }
     }
 
-    fn simplify_clauses(&mut self, mut clauses: Vec<usize>) -> Vec<usize> {
+    fn simplify_clauses(&mut self, mut clauses: Vec<CRef>) -> Vec<CRef> {
         let mut i: usize = 0;
         while i < clauses.len() {
             let cid = clauses[i];
