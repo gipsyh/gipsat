@@ -33,8 +33,14 @@ impl Watchers {
 
     #[inline]
     pub fn detach(&mut self, cref: usize, cls: &[Lit]) {
-        self.wtrs[!cls[0]].retain(|w| w.clause != cref);
-        self.wtrs[!cls[1]].retain(|w| w.clause != cref);
+        for l in &cls[0..2] {
+            for i in (0..self.wtrs[!*l].len()).rev() {
+                if self.wtrs[!*l][i].clause == cref {
+                    self.wtrs[!*l].swap_remove(i);
+                    break;
+                }
+            }
+        }
     }
 }
 
