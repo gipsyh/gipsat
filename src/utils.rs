@@ -1,7 +1,5 @@
 use std::ops::Not;
 
-use logic_form::{Var, VarMap};
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Lbool(pub u8);
 
