@@ -2,27 +2,31 @@ use crate::{
     cdb::{CRef, ClauseKind, CREF_NONE},
     Solver,
 };
-use logic_form::{Lit, LitMap};
+use logic_form::{Lit, Var, VarMap};
 
 #[derive(Default)]
 pub struct Value {
-    data: LitMap<Option<bool>>,
+    data: VarMap<Option<bool>>,
 }
 
 impl Value {
     pub fn new_var(&mut self) {
         self.data.push(None);
-        self.data.push(None);
     }
 
     #[inline]
     pub fn v(&self, lit: Lit) -> Option<bool> {
-        self.data[lit]
+        self.data[lit].map(|v| v ^ !lit.polarity())
     }
 
     #[inline]
-    pub fn set(&mut self, lit: Lit, v: Option<bool>) {
-        self.data[lit] = v
+    pub fn set(&mut self, lit: Lit) {
+        self.data[lit] = Some(lit.polarity())
+    }
+
+    #[inline]
+    pub fn set_none(&mut self, var: Var) {
+        self.data[var] = None
     }
 }
 
@@ -52,8 +56,7 @@ impl Solver {
     #[inline]
     pub fn assign(&mut self, lit: Lit, reason: CRef) {
         self.trail.push(lit);
-        self.value.set(lit, Some(true));
-        self.value.set(!lit, Some(false));
+        self.value.set(lit);
         self.reason[lit] = reason;
         self.level[lit] = self.highest_level() as u32;
     }
@@ -69,8 +72,7 @@ impl Solver {
         }
         while self.trail.len() > self.pos_in_trail[level] {
             let bt = self.trail.pop().unwrap();
-            self.value.set(bt, None);
-            self.value.set(!bt, None);
+            self.value.set_none(bt.var());
             self.vsids.push(bt.var());
             self.phase_saving[bt] = Some(bt);
         }

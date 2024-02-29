@@ -155,8 +155,7 @@ impl Solver {
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
-                self.value.set(bt, None);
-                self.value.set(!bt, None);
+                self.value.set_none(bt.var());
                 self.phase_saving[bt] = Some(bt);
                 if self.temporary_domain {
                     self.vsids.push(bt.var());
@@ -284,8 +283,7 @@ impl Solver {
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
-                self.value.set(bt, None);
-                self.value.set(!bt, None);
+                self.value.set_none(bt.var());
                 self.phase_saving[bt] = Some(bt);
             }
             self.propagated = self.pos_in_trail[0];
@@ -309,8 +307,7 @@ impl Solver {
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
-                self.value.set(bt, None);
-                self.value.set(!bt, None);
+                self.value.set_none(bt.var());
                 self.phase_saving[bt] = Some(bt);
             }
             self.propagated = self.pos_in_trail[0];
