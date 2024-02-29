@@ -1,4 +1,4 @@
-use crate::Solver;
+use crate::{utils::Lbool, Solver};
 use logic_form::Var;
 
 impl Solver {
@@ -6,9 +6,9 @@ impl Solver {
         for v in 0..self.num_var() {
             let lit = Var::new(v).lit();
             match self.value.v(lit) {
-                Some(true) => print!("{:?}", lit),
-                Some(false) => print!("{:?}", !lit),
-                None => print!("X"),
+                Lbool::TRUE => print!("{:?}", lit),
+                Lbool::FALSE => print!("{:?}", !lit),
+                _ => print!("X"),
             };
             print!("\t");
         }

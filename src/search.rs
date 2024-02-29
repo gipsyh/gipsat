@@ -1,51 +1,35 @@
 use crate::{
     cdb::{CRef, ClauseKind, CREF_NONE},
+    utils::Lbool,
     Solver,
 };
 use logic_form::{Lit, Var, VarMap};
 
 #[derive(Default)]
 pub struct Value {
-    data: VarMap<Option<bool>>,
+    data: VarMap<Lbool>,
 }
 
 impl Value {
     pub fn new_var(&mut self) {
-        self.data.push(None);
+        self.data.push(Lbool::NONE);
     }
 
     #[inline]
-    pub fn v(&self, lit: Lit) -> Option<bool> {
-        self.data[lit].map(|v| v ^ !lit.polarity())
+    pub fn v(&self, lit: Lit) -> Lbool {
+        Lbool(self.data[lit].0 ^ (!lit.polarity() as u8))
     }
 
     #[inline]
     pub fn set(&mut self, lit: Lit) {
-        self.data[lit] = Some(lit.polarity())
+        self.data[lit] = Lbool(lit.polarity() as u8)
     }
 
     #[inline]
     pub fn set_none(&mut self, var: Var) {
-        self.data[var] = None
+        self.data[var] = Lbool::NONE
     }
 }
-
-// impl Index<Lit> for Value {
-//     type Output = Option<bool>;
-
-//     #[inline]
-//     fn index(&self, index: Lit) -> &Self::Output {
-//         &self.data[index]
-//     }
-// }
-
-// impl IndexMut<Lit> for Value {
-
-//     #[inline]
-//     fn index_mut(&mut self, index: Lit) -> &mut Self::Output {
-//         &mut self.data[index]
-//     }
-// }
 
 impl Solver {
     #[inline]
@@ -110,12 +94,12 @@ impl Solver {
                 while self.highest_level() < assumption.len() {
                     let a = assumption[self.highest_level()];
                     match self.value.v(a) {
-                        Some(true) => self.new_level(),
-                        Some(false) => {
+                        Lbool::TRUE => self.new_level(),
+                        Lbool::FALSE => {
                             self.analyze_unsat_core(a);
                             return false;
                         }
-                        None => {
+                        _ => {
                             self.new_level();
                             self.assign(a, CREF_NONE);
                             continue 'ml;

@@ -1,4 +1,4 @@
-use crate::{cdb::CRef, Solver};
+use crate::{cdb::CRef, utils::Lbool, Solver};
 use logic_form::{Lit, LitMap};
 
 #[derive(Clone, Copy, Debug)]
@@ -56,17 +56,17 @@ impl Solver {
                 let watchers = &mut self.watchers.wtrs[p];
                 let blocker = watchers[w].blocker;
                 match self.value.v(blocker) {
-                    Some(true) => {
+                    Lbool::TRUE => {
                         w += 1;
                         continue;
                     }
-                    None => {
+                    Lbool::FALSE => (),
+                    _ => {
                         if !propagate_full && !self.domain.has(blocker.var()) {
                             w += 1;
                             continue;
                         }
                     }
-                    Some(false) => (),
                 }
                 let cid = watchers[w].clause;
                 let cref = &mut self.cdb[cid];
@@ -76,24 +76,24 @@ impl Solver {
                 assert!(cref[1] == !p);
                 let new_watcher = Watcher::new(cid, cref[0]);
                 match self.value.v(cref[0]) {
-                    Some(true) => {
+                    Lbool::TRUE => {
                         watchers[w] = new_watcher;
                         w += 1;
                         continue;
                     }
-                    None => {
+                    Lbool::FALSE => (),
+                    _ => {
                         if !propagate_full && !self.domain.has(cref[0].var()) {
                             watchers[w] = new_watcher;
                             w += 1;
                             continue;
                         }
                     }
-                    Some(false) => (),
                 }
 
                 for i in 2..cref.len() {
                     let lit = cref[i];
-                    if !matches!(self.value.v(lit), Some(false)) {
+                    if !self.value.v(lit).is_false() {
                         cref.swap(1, i);
                         watchers.swap_remove(w);
                         self.watchers.wtrs[!cref[1]].push(new_watcher);
@@ -101,7 +101,7 @@ impl Solver {
                     }
                 }
                 watchers[w] = new_watcher;
-                if let Some(false) = self.value.v(cref[0]) {
+                if self.value.v(cref[0]).is_false() {
                     return Some(cid);
                 }
                 if propagate_full || self.domain.has(cref[0].var()) {

@@ -21,6 +21,8 @@ use std::fmt::{self, Debug};
 use ts::TransitionSystem;
 use vsids::Vsids;
 
+use crate::utils::Lbool;
+
 #[derive(Default)]
 pub struct Solver {
     name: String,
@@ -96,9 +98,9 @@ impl Solver {
                 self.new_var();
             }
             match self.value.v(*l) {
-                Some(true) => return None,
-                Some(false) => (),
-                None => clause.push(*l),
+                Lbool::TRUE => return None,
+                Lbool::FALSE => (),
+                _ => clause.push(*l),
             }
         }
         assert!(!clause.is_empty());
@@ -121,11 +123,11 @@ impl Solver {
         if clause.len() == 1 {
             assert!(!matches!(kind, ClauseKind::Temporary));
             match self.value.v(clause[0]) {
-                None => {
+                Lbool::TRUE | Lbool::FALSE => todo!(),
+                _ => {
                     self.assign(clause[0], CREF_NONE);
                     assert!(self.propagate().is_none());
                 }
-                _ => todo!(),
             }
         } else {
             self.attach_clause(&clause, kind);
@@ -346,7 +348,11 @@ pub struct Model<'a> {
 
 impl Model<'_> {
     pub fn lit_value(&self, lit: Lit) -> Option<bool> {
-        self.solver.value.v(lit)
+        match self.solver.value.v(lit) {
+            Lbool::TRUE => Some(true),
+            Lbool::FALSE => Some(false),
+            _ => None,
+        }
     }
 }
 

@@ -273,9 +273,7 @@ impl IndexMut<CRef> for ClauseDB {
 impl Solver {
     #[inline]
     fn clause_satisfied(&self, cls: CRef) -> bool {
-        self.cdb[cls]
-            .iter()
-            .any(|l| matches!(self.value.v(*l), Some(true)))
+        self.cdb[cls].iter().any(|l| self.value.v(*l).is_true())
     }
 
     pub fn attach_clause(&mut self, clause: &[Lit], kind: ClauseKind) -> CRef {
@@ -297,7 +295,7 @@ impl Solver {
     }
 
     fn locked(&self, cls: &[Lit]) -> bool {
-        matches!(self.value.v(cls[0]), Some(true)) && self.reason[cls[0]] != CREF_NONE
+        self.value.v(cls[0]).is_true() && self.reason[cls[0]] != CREF_NONE
     }
 
     pub fn clean_leanrt(&mut self) {
@@ -349,7 +347,7 @@ impl Solver {
             let mut j = 2;
             let mut cls = self.cdb.get(cid);
             while j < cls.len() {
-                if let Some(false) = self.value.v(cls[j]) {
+                if self.value.v(cls[j]).is_false() {
                     cls.swap_remove(j);
                     continue;
                 }
