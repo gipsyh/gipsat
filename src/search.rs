@@ -86,7 +86,8 @@ impl Solver {
                     }
                     let learnt_id = self.attach_clause(&learnt, kind);
                     self.cdb.bump(learnt_id);
-                    self.assign(self.cdb[learnt_id][0], learnt_id);
+                    let assign = self.cdb.get(learnt_id)[0];
+                    self.assign(assign, learnt_id);
                 }
                 self.vsids.decay();
                 self.cdb.decay();

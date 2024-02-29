@@ -80,7 +80,7 @@ impl Solver {
         self.vsids.new_var();
         self.phase_saving.push(None);
         self.analyze.new_var();
-        self.unsat_core.new_var();
+        self.unsat_core.reserve(res);
         self.domain.reserve(res);
         res
     }
@@ -113,7 +113,7 @@ impl Solver {
             None => return,
         };
         for l in clause.iter() {
-            self.domain.global.mark(l.var());
+            self.domain.global.insert(l.var());
             if let Some(act) = self.constrain_act {
                 if act.var() == l.var() {
                     kind = ClauseKind::Temporary;
@@ -144,7 +144,7 @@ impl Solver {
 
     pub fn add_lemma(&mut self, lemma: &[Lit]) {
         for l in lemma.iter() {
-            self.domain.lemma.mark(l.var());
+            self.domain.lemma.insert(l.var());
         }
         self.lazy_lemma.push(Clause::from(lemma));
     }
@@ -245,7 +245,7 @@ impl Solver {
         if self.constrain_act.is_none() {
             let constrain_act = self.new_var();
             self.constrain_act = Some(constrain_act.lit());
-            self.domain.global.mark(constrain_act);
+            self.domain.global.insert(constrain_act);
         }
         let act = self.constrain_act.unwrap();
         let mut assumption = Cube::new();

@@ -1,9 +1,10 @@
-use crate::{ts::TransitionSystem, utils::VarMark};
-use logic_form::{Var, VarMap};
+use crate::ts::TransitionSystem;
+use logic_form::{Var, VarMap, VarSet};
+use std::slice;
 
 pub struct Domain {
-    pub global: VarMark,
-    pub lemma: VarMark,
+    pub global: VarSet,
+    pub lemma: VarSet,
     pub local_stamp: u32,
     pub local: VarMap<u32>,
     pub local_marks: Vec<Var>,
@@ -26,7 +27,7 @@ impl Domain {
             &mut self.local,
             &mut self.local_marks,
         );
-        for l in self.lemma.marks().iter() {
+        for l in self.lemma.iter() {
             if self.local[*l] != self.local_stamp {
                 self.local[*l] = self.local_stamp;
                 self.local_marks.push(*l);
@@ -48,11 +49,11 @@ impl Domain {
         }
     }
 
-    pub fn domains(&self) -> impl Iterator<Item = &Var> {
+    pub fn domains(&self) -> slice::Iter<Var> {
         if self.enable_local {
             self.local_marks.iter()
         } else {
-            self.global.marks().iter()
+            self.global.iter()
         }
     }
 }

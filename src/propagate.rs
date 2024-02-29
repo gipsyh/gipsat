@@ -1,4 +1,8 @@
-use crate::{cdb::CRef, utils::Lbool, Solver};
+use crate::{
+    cdb::{CRef, Clause},
+    utils::Lbool,
+    Solver,
+};
 use logic_form::{Lit, LitMap};
 
 #[derive(Clone, Copy, Debug)]
@@ -26,17 +30,18 @@ impl Watchers {
     }
 
     #[inline]
-    pub fn attach(&mut self, cref: CRef, cls: &[Lit]) {
+    pub fn attach(&mut self, cref: CRef, cls: Clause) {
         self.wtrs[!cls[0]].push(Watcher::new(cref, cls[1]));
         self.wtrs[!cls[1]].push(Watcher::new(cref, cls[0]));
     }
 
     #[inline]
-    pub fn detach(&mut self, cref: CRef, cls: &[Lit]) {
-        for l in &cls[0..2] {
-            for i in (0..self.wtrs[!*l].len()).rev() {
-                if self.wtrs[!*l][i].clause == cref {
-                    self.wtrs[!*l].swap_remove(i);
+    pub fn detach(&mut self, cref: CRef, cls: Clause) {
+        for l in 0..2 {
+            let l = cls[l];
+            for i in (0..self.wtrs[!l].len()).rev() {
+                if self.wtrs[!l][i].clause == cref {
+                    self.wtrs[!l].swap_remove(i);
                     break;
                 }
             }
@@ -69,7 +74,7 @@ impl Solver {
                     }
                 }
                 let cid = watchers[w].clause;
-                let cref = &mut self.cdb[cid];
+                let mut cref = self.cdb.get(cid);
                 if cref[0] == !p {
                     cref.swap(0, 1);
                 }

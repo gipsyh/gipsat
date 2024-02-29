@@ -73,9 +73,9 @@ impl Solver {
         }
         let mut stack: Vec<(Lit, usize)> = vec![(lit, 1)];
         'a: while let Some((p, b)) = stack.pop() {
-            let c = self.reason[p];
-            for i in b..self.cdb[c].len() {
-                let l = self.cdb[c][i];
+            let c = self.cdb.get(self.reason[p]);
+            for i in b..c.len() {
+                let l = c[i];
                 if self.level[l] == 0 || matches!(self.analyze[l], Mark::Seen | Mark::Removable) {
                     continue;
                 }
@@ -131,16 +131,17 @@ impl Solver {
         let mut resolve_lit = None;
         loop {
             self.cdb.bump(conflict);
-            let cref = &self.cdb[conflict];
+            let cref = self.cdb.get(conflict);
             let begin = if resolve_lit.is_some() { 1 } else { 0 };
-            for lit in cref.iter().skip(begin) {
-                if !self.analyze.seen(*lit) && self.level[*lit] > 0 {
+            for lit in begin..cref.len() {
+                let lit = cref[lit];
+                if !self.analyze.seen(lit) && self.level[lit] > 0 {
                     self.vsids.bump(lit.var());
-                    self.analyze[*lit] = Mark::Seen;
-                    if self.level[*lit] >= self.highest_level() as u32 {
+                    self.analyze[lit] = Mark::Seen;
+                    if self.level[lit] >= self.highest_level() as u32 {
                         path += 1;
                     } else {
-                        learnt.push(*lit);
+                        learnt.push(lit);
                     }
                 }
             }
@@ -182,9 +183,11 @@ impl Solver {
             p = self.trail[i];
             if self.analyze.seen(p) {
                 if self.reason[p] != CREF_NONE {
-                    for l in &self.cdb[self.reason[p]][1..] {
-                        if self.level[*l] > 0 {
-                            self.analyze.see(*l);
+                    let c = self.cdb.get(self.reason[p]);
+                    for l in 1..c.len() {
+                        let l = c[l];
+                        if self.level[l] > 0 {
+                            self.analyze.see(l);
                         }
                     }
                 } else {

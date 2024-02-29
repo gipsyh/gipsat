@@ -2,8 +2,9 @@ use crate::Solver;
 use bitfield_struct::bitfield;
 use logic_form::Lit;
 use std::{
-    mem::{take, transmute},
-    ops::{AddAssign, Index, IndexMut, MulAssign},
+    mem::take,
+    ops::{AddAssign, Index, MulAssign},
+    ptr,
 };
 
 #[bitfield(u32)]
@@ -23,38 +24,47 @@ union Data {
     cid: u32,
 }
 
-struct Clause {
-    data: &'static mut [Data],
+#[derive(Clone, Copy)]
+pub struct Clause {
+    data: *mut Data,
 }
 
 impl Clause {
     #[inline]
-    fn len(&self) -> usize {
-        unsafe { self.data[0].header.len() }
+    pub fn len(&self) -> usize {
+        unsafe { (*self.data).header.len() }
     }
 
     #[inline]
     fn is_learnt(&self) -> bool {
-        unsafe { self.data[0].header.learnt() }
+        unsafe { (*self.data).header.learnt() }
     }
 
     #[inline]
     fn get_act(&self) -> f32 {
         assert!(self.is_learnt());
-        unsafe { self.data[self.len() + 1].act }
+        unsafe { (*self.data.add(self.len() + 1)).act }
     }
 
     #[inline]
     fn get_mut_act(&mut self) -> &mut f32 {
         assert!(self.is_learnt());
-        unsafe { &mut self.data[self.len() + 1].act }
+        unsafe { &mut (*self.data.add(self.len() + 1)).act }
     }
 
-    fn swap_remove(&mut self, index: usize) {
-        let len = self.len();
-        self.data[1 + index] = self.data[len];
+    #[inline]
+    pub fn swap(&mut self, a: usize, b: usize) {
         unsafe {
-            self.data[0].header.set_len(len - 1);
+            ptr::swap(self.data.add(a + 1), self.data.add(b + 1));
+        }
+    }
+
+    #[inline]
+    pub fn swap_remove(&mut self, index: usize) {
+        let len = self.len();
+        unsafe {
+            *self.data.add(1 + index) = *self.data.add(len);
+            (*self.data).header.set_len(len - 1);
         };
     }
 }
@@ -64,7 +74,7 @@ impl Index<usize> for Clause {
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        unsafe { transmute(&self.data[index + 1]) }
+        unsafe { &*(self.data.add(index + 1) as *const Lit) }
     }
 }
 
@@ -97,14 +107,10 @@ impl Allocator {
     }
 
     #[inline]
-    pub fn get(&mut self, cref: CRef) -> Clause {
-        let cref = cref.0 as usize;
-        let mut len = unsafe { self.data[cref].header.len() } + 1;
-        if unsafe { self.data[cref].header.learnt() } {
-            len += 1;
+    pub fn get(&self, cref: CRef) -> Clause {
+        Clause {
+            data: unsafe { self.data.get_unchecked(cref.0 as usize) as *const Data as *mut Data },
         }
-        let data: &'static mut [Data] = unsafe { transmute(&mut self.data[cref..cref + len]) };
-        Clause { data }
     }
 
     #[inline]
@@ -189,7 +195,7 @@ pub struct ClauseDB {
 
 impl ClauseDB {
     #[inline]
-    fn get(&mut self, cref: CRef) -> Clause {
+    pub fn get(&self, cref: CRef) -> Clause {
         self.allocator.get(cref)
     }
 
@@ -250,41 +256,59 @@ impl Default for ClauseDB {
     }
 }
 
-impl Index<CRef> for ClauseDB {
-    type Output = [Lit];
+// impl Index<CRef> for ClauseDB {
+//     type Output = [Lit];
 
-    #[inline]
-    fn index(&self, index: CRef) -> &Self::Output {
-        let index = index.0 as usize;
-        let len = unsafe { self.allocator.data[index].header.len() };
-        unsafe { transmute(&self.allocator.data[index + 1..index + 1 + len]) }
-    }
-}
+//     #[inline]
+//     fn index(&self, index: CRef) -> &Self::Output {
+//         let index = index.0 as usize;
+//         let len = unsafe { self.allocator.data[index].header.len() };
+//         unsafe {
+//             transmute(
+//                 self.allocator
+//                     .data
+//                     .get_unchecked(index + 1..index + 1 + len),
+//             )
+//         }
+//     }
+// }
 
-impl IndexMut<CRef> for ClauseDB {
-    #[inline]
-    fn index_mut(&mut self, index: CRef) -> &mut Self::Output {
-        let index = index.0 as usize;
-        let len = unsafe { self.allocator.data[index].header.len() };
-        unsafe { transmute(&mut self.allocator.data[index + 1..index + 1 + len]) }
-    }
-}
+// impl IndexMut<CRef> for ClauseDB {
+//     #[inline]
+//     fn index_mut(&mut self, index: CRef) -> &mut Self::Output {
+//         let index = index.0 as usize;
+//         let len = unsafe { self.allocator.data[index].header.len() };
+//         unsafe {
+//             transmute(
+//                 self.allocator
+//                     .data
+//                     .get_unchecked_mut(index + 1..index + 1 + len),
+//             )
+//         }
+//     }
+// }
 
 impl Solver {
     #[inline]
     fn clause_satisfied(&self, cls: CRef) -> bool {
-        self.cdb[cls].iter().any(|l| self.value.v(*l).is_true())
+        let cls = self.cdb.get(cls);
+        for i in 0..cls.len() {
+            if self.value.v(cls[i]).is_true() {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn attach_clause(&mut self, clause: &[Lit], kind: ClauseKind) -> CRef {
         assert!(clause.len() > 1);
         let id = self.cdb.alloc(clause, kind);
-        self.watchers.attach(id, &self.cdb[id]);
+        self.watchers.attach(id, self.cdb.get(id));
         id
     }
 
     fn remove_clause(&mut self, cref: CRef) {
-        self.watchers.detach(cref, &self.cdb[cref]);
+        self.watchers.detach(cref, self.cdb.get(cref));
         self.cdb.free(cref);
     }
 
@@ -294,7 +318,7 @@ impl Solver {
         }
     }
 
-    fn locked(&self, cls: &[Lit]) -> bool {
+    fn locked(&self, cls: Clause) -> bool {
         self.value.v(cls[0]).is_true() && self.reason[cls[0]] != CREF_NONE
     }
 
@@ -326,7 +350,7 @@ impl Solver {
 
         assert!(self.highest_level() == 0);
         for l in take(&mut self.cdb.learnt) {
-            let cls = &self.cdb[l];
+            let cls = self.cdb.get(l);
             if !self.locked(cls) && cls.len() > 2 {
                 self.remove_clause(l);
             } else {
