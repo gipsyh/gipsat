@@ -3,9 +3,10 @@ use crate::{
     utils::Lbool,
     Solver,
 };
+use giputils::gvec::Gvec;
 use logic_form::{Lit, LitMap};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Watcher {
     pub clause: CRef,
     blocker: Lit,
@@ -20,7 +21,7 @@ impl Watcher {
 
 #[derive(Default)]
 pub struct Watchers {
-    pub wtrs: LitMap<Vec<Watcher>>,
+    pub wtrs: LitMap<Gvec<Watcher>>,
 }
 
 impl Watchers {

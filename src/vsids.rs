@@ -1,5 +1,5 @@
-use crate::{cdb::CREF_NONE, Solver};
-use logic_form::{Var, VarMap};
+use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
+use logic_form::{Lit, Var, VarMap};
 use std::ops::MulAssign;
 
 pub struct Vsids {
@@ -218,7 +218,7 @@ impl Solver {
     pub fn decide(&mut self) -> bool {
         while let Some(decide) = self.vsids.pop() {
             if self.value.v(decide.lit()).is_none() {
-                let decide = self.phase_saving[decide].unwrap_or(decide.lit());
+                let decide = Lit::new(decide, self.phase_saving[decide] != Lbool::FALSE);
                 self.pos_in_trail.push(self.trail.len());
                 self.assign(decide, CREF_NONE);
                 return true;

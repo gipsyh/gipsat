@@ -9,9 +9,11 @@ mod ts;
 mod utils;
 mod vsids;
 
+use crate::utils::Lbool;
 use analyze::Analyze;
 use cdb::{CRef, ClauseDB, ClauseKind, CREF_NONE};
 use domain::Domain;
+use giputils::gvec::Gvec;
 use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
 use search::Value;
@@ -20,21 +22,19 @@ use std::fmt::{self, Debug};
 use ts::TransitionSystem;
 use vsids::Vsids;
 
-use crate::utils::Lbool;
-
 #[derive(Default)]
 pub struct Solver {
     name: String,
     cdb: ClauseDB,
     watchers: Watchers,
     value: Value,
-    trail: Vec<Lit>,
-    pos_in_trail: Vec<usize>,
+    trail: Gvec<Lit>,
+    pos_in_trail: Vec<u32>,
     level: VarMap<u32>,
     reason: VarMap<CRef>,
-    propagated: usize,
+    propagated: u32,
     vsids: Vsids,
-    phase_saving: VarMap<Option<Lit>>,
+    phase_saving: VarMap<Lbool>,
     analyze: Analyze,
     unsat_core: LitSet,
 
@@ -77,7 +77,7 @@ impl Solver {
         self.watchers.reserve(size);
         let res = Var::new(self.level.len() - 1);
         self.vsids.new_var();
-        self.phase_saving.push(None);
+        self.phase_saving.push(Lbool::NONE);
         self.analyze.new_var();
         self.unsat_core.reserve(res);
         self.domain.reserve(res);
@@ -157,7 +157,7 @@ impl Solver {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
                 self.value.set_none(bt.var());
-                self.phase_saving[bt] = Some(bt);
+                self.phase_saving[bt] = Lbool::from(bt.polarity());
                 if self.temporary_domain {
                     self.vsids.push(bt.var());
                 }
@@ -285,7 +285,7 @@ impl Solver {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
                 self.value.set_none(bt.var());
-                self.phase_saving[bt] = Some(bt);
+                self.phase_saving[bt] = Lbool::from(bt.polarity());
             }
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
@@ -309,7 +309,7 @@ impl Solver {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
                 self.value.set_none(bt.var());
-                self.phase_saving[bt] = Some(bt);
+                self.phase_saving[bt] = Lbool::from(bt.polarity());
             }
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);

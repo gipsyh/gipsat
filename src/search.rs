@@ -58,7 +58,7 @@ impl Solver {
             let bt = self.trail.pop().unwrap();
             self.value.set_none(bt.var());
             self.vsids.push(bt.var());
-            self.phase_saving[bt] = Some(bt);
+            self.phase_saving[bt] = Lbool::from(bt.polarity());
         }
         self.propagated = self.pos_in_trail[level];
         self.pos_in_trail.truncate(level);

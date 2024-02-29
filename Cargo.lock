@@ -113,8 +113,13 @@ version = "0.1.0"
 dependencies = [
  "bitfield-struct",
  "clap",
+ "giputils",
  "logic-form",
 ]
+
+[[package]]
+name = "giputils"
+version = "0.1.0"
 
 [[package]]
 name = "heck"

@@ -114,7 +114,7 @@ impl Solver {
     pub fn calculate_lbd(&mut self, learnt: &Clause) -> usize {
         let mut lbd = 0;
         for l in learnt.iter() {
-            let d = self.trail[self.level[*l] as usize];
+            let d = self.trail[self.level[*l]];
             if !self.analyze.seen(d) {
                 lbd += 1;
                 self.analyze.see(d);

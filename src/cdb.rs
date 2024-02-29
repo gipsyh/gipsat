@@ -256,38 +256,6 @@ impl Default for ClauseDB {
     }
 }
 
-// impl Index<CRef> for ClauseDB {
-//     type Output = [Lit];
-
-//     #[inline]
-//     fn index(&self, index: CRef) -> &Self::Output {
-//         let index = index.0 as usize;
-//         let len = unsafe { self.allocator.data[index].header.len() };
-//         unsafe {
-//             transmute(
-//                 self.allocator
-//                     .data
-//                     .get_unchecked(index + 1..index + 1 + len),
-//             )
-//         }
-//     }
-// }
-
-// impl IndexMut<CRef> for ClauseDB {
-//     #[inline]
-//     fn index_mut(&mut self, index: CRef) -> &mut Self::Output {
-//         let index = index.0 as usize;
-//         let len = unsafe { self.allocator.data[index].header.len() };
-//         unsafe {
-//             transmute(
-//                 self.allocator
-//                     .data
-//                     .get_unchecked_mut(index + 1..index + 1 + len),
-//             )
-//         }
-//     }
-// }
-
 impl Solver {
     #[inline]
     fn clause_satisfied(&self, cls: CRef) -> bool {

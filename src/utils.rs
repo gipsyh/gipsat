@@ -24,6 +24,13 @@ impl Lbool {
     }
 }
 
+impl From<bool> for Lbool {
+    #[inline]
+    fn from(value: bool) -> Self {
+        Self(value as u8)
+    }
+}
+
 impl Default for Lbool {
     fn default() -> Self {
         Self::NONE
