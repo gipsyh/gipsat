@@ -78,10 +78,16 @@ impl Index<usize> for Clause {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CRef(u32);
 
 pub const CREF_NONE: CRef = CRef(u32::MAX);
+
+impl Default for CRef {
+    fn default() -> Self {
+        CREF_NONE
+    }
+}
 
 impl From<usize> for CRef {
     fn from(value: usize) -> Self {

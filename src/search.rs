@@ -11,8 +11,9 @@ pub struct Value {
 }
 
 impl Value {
-    pub fn new_var(&mut self) {
-        self.data.push(Lbool::NONE);
+    #[inline]
+    pub fn reserve(&mut self, var: Var) {
+        self.data.reserve(var)
     }
 
     #[inline]

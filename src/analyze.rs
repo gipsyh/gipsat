@@ -2,7 +2,7 @@ use crate::{
     cdb::{CRef, CREF_NONE},
     Solver,
 };
-use logic_form::{Clause, Lit, VarMap};
+use logic_form::{Clause, Lit, Var, VarMap};
 use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -21,8 +21,8 @@ pub struct Analyze {
 }
 
 impl Analyze {
-    pub fn new_var(&mut self) {
-        self.mark.push(Default::default());
+    pub fn reserve(&mut self, var: Var) {
+        self.mark.reserve(var)
     }
 
     #[inline]

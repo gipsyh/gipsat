@@ -4,7 +4,7 @@ use crate::{
     Solver,
 };
 use giputils::gvec::Gvec;
-use logic_form::{Lit, LitMap};
+use logic_form::{Lit, LitMap, Var};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Watcher {
@@ -26,8 +26,8 @@ pub struct Watchers {
 
 impl Watchers {
     #[inline]
-    pub fn reserve(&mut self, size: usize) {
-        self.wtrs.resize_with(size * 2, Default::default);
+    pub fn reserve(&mut self, var: Var) {
+        self.wtrs.reserve(var)
     }
 
     #[inline]

@@ -70,18 +70,17 @@ impl Solver {
     }
 
     pub fn new_var(&mut self) -> Var {
-        let size = self.level.len() + 1;
-        self.value.new_var();
-        self.level.push(0);
-        self.reason.push(CREF_NONE);
-        self.watchers.reserve(size);
-        let res = Var::new(self.level.len() - 1);
-        self.vsids.new_var();
-        self.phase_saving.push(Lbool::NONE);
-        self.analyze.new_var();
-        self.unsat_core.reserve(res);
-        self.domain.reserve(res);
-        res
+        let var = Var::new(self.num_var());
+        self.value.reserve(var);
+        self.level.reserve(var);
+        self.reason.reserve(var);
+        self.watchers.reserve(var);
+        self.vsids.reserve(var);
+        self.phase_saving.reserve(var);
+        self.analyze.reserve(var);
+        self.unsat_core.reserve(var);
+        self.domain.reserve(var);
+        var
     }
 
     #[inline]

@@ -26,10 +26,11 @@ impl Default for Vsids {
 }
 
 impl Vsids {
-    pub fn new_var(&mut self) {
-        self.pos.push(None);
-        self.bucket.new_var();
-        self.activity.push(f64::default());
+    #[inline]
+    pub fn reserve(&mut self, var: Var) {
+        self.pos.reserve(var);
+        self.bucket.reserve(var);
+        self.activity.reserve(var);
     }
 
     #[inline]
@@ -172,9 +173,9 @@ impl Bucket {
         }
     }
 
-    pub fn new_var(&mut self) {
-        self.var_bucket.push(0);
-        self.in_bucket.push(false);
+    pub fn reserve(&mut self, var: Var) {
+        self.var_bucket.reserve(var);
+        self.in_bucket.reserve(var);
     }
 
     #[inline]
