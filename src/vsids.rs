@@ -161,11 +161,12 @@ pub struct Bucket {
 impl Bucket {
     pub fn create(&mut self, vars: Vec<Var>) {
         self.clear();
-        let num_bucket = (usize::BITS - vars.len().leading_zeros()) as usize;
+        let num_bucket = 20;
         self.buckets.resize_with(num_bucket, Default::default);
+        let bicket_len = vars.len() / num_bucket + 1;
         self.head = 0;
         for (i, var) in vars.into_iter().enumerate() {
-            let bucket: usize = (usize::BITS - (i + 1).leading_zeros() - 1) as usize;
+            let bucket = i / bicket_len;
             self.var_bucket[var] = bucket;
             self.buckets[bucket].push(var);
             assert!(!self.in_bucket[var]);
