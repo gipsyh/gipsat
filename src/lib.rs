@@ -185,11 +185,15 @@ impl Solver {
         if !self.temporary_domain {
             if let Some(domain) = domain {
                 self.domain.enable_local(domain, self.ts.as_ref().unwrap());
-                assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
-                self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
-                self.domain
-                    .local_marks
-                    .push(self.constrain_act.unwrap().var());
+                if self.constrain_act.is_some() {
+                    assert!(
+                        self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp
+                    );
+                    self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
+                    self.domain
+                        .local_marks
+                        .push(self.constrain_act.unwrap().var());
+                }
             }
             self.vsids.clear();
             for d in self.domain.domains() {
@@ -215,19 +219,19 @@ impl Solver {
         }
     }
 
-    pub fn solve_with_domain(
-        &mut self,
-        assumption: &[Lit],
-        domain: impl Iterator<Item = Var>,
-    ) -> SatResult<'_> {
-        self.new_round(Some(domain));
+    pub fn solve_with_domain(&mut self, assumption: &[Lit], domain: bool) -> SatResult<'_> {
+        if domain {
+            self.new_round(Some(assumption.iter().map(|l| l.var())));
+        } else {
+            self.new_round(None::<std::option::IntoIter<Var>>);
+        };
         self.statistic.num_solve += 1;
         if self.statistic.num_solve % 1000 == 1 {
             self.clean_leanrt();
             self.simplify();
         }
         self.garbage_collect();
-        if self.search(assumption) {
+        if self.search(&assumption) {
             SatResult::Sat(Model { solver: self })
         } else {
             SatResult::Unsat(Conflict { solver: self })
