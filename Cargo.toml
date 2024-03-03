@@ -10,6 +10,7 @@ logic-form = { path = "../logic-form"}
 clap = { version = "4.3.0", features = ["derive"] }
 bitfield-struct = "0.5.6"
 giputils = { path = "../giputils" }
+satif = { path = "../satif" }
 
 [features]
 no_bound_check = ["logic-form/no_bound_check", "giputils/no_bound_check"]

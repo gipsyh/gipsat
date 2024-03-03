@@ -115,6 +115,7 @@ dependencies = [
  "clap",
  "giputils",
  "logic-form",
+ "satif",
 ]
 
 [[package]]
@@ -150,6 +151,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "satif"
+version = "0.1.0"
+dependencies = [
+ "logic-form",
 ]
 
 [[package]]

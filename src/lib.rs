@@ -16,9 +16,9 @@ use domain::Domain;
 use giputils::gvec::Gvec;
 use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
+use satif::{SatResult, SatifSat, SatifUnsat};
 use search::Value;
 use statistic::Statistic;
-use std::fmt::{self, Debug};
 use ts::TransitionSystem;
 use vsids::Vsids;
 
@@ -204,7 +204,7 @@ impl Solver {
         }
     }
 
-    pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<'_> {
+    pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<Sat, Unsat> {
         self.new_round(None::<std::option::IntoIter<Var>>);
         self.statistic.num_solve += 1;
         if self.statistic.num_solve % 1000 == 1 {
@@ -213,13 +213,13 @@ impl Solver {
         }
         self.garbage_collect();
         if self.search(assumption) {
-            SatResult::Sat(Model { solver: self })
+            SatResult::Sat(Sat { solver: self })
         } else {
-            SatResult::Unsat(Conflict { solver: self })
+            SatResult::Unsat(Unsat { solver: self })
         }
     }
 
-    pub fn solve_with_domain(&mut self, assumption: &[Lit], domain: bool) -> SatResult<'_> {
+    pub fn solve_with_domain(&mut self, assumption: &[Lit], domain: bool) -> SatResult<Sat, Unsat> {
         if domain {
             self.new_round(Some(assumption.iter().map(|l| l.var())));
         } else {
@@ -231,10 +231,10 @@ impl Solver {
             self.simplify();
         }
         self.garbage_collect();
-        if self.search(&assumption) {
-            SatResult::Sat(Model { solver: self })
+        if self.search(assumption) {
+            SatResult::Sat(Sat { solver: self })
         } else {
-            SatResult::Unsat(Conflict { solver: self })
+            SatResult::Unsat(Unsat { solver: self })
         }
     }
 
@@ -243,7 +243,7 @@ impl Solver {
         assump: &[Lit],
         mut constrain: Clause,
         domain: bool,
-    ) -> SatResult<'_> {
+    ) -> SatResult<Sat, Unsat> {
         if self.constrain_act.is_none() {
             let constrain_act = self.new_var();
             self.constrain_act = Some(constrain_act.lit());
@@ -268,9 +268,9 @@ impl Solver {
         }
         self.garbage_collect();
         if self.search(&assumption) {
-            SatResult::Sat(Model { solver: self })
+            SatResult::Sat(Sat { solver: self })
         } else {
-            SatResult::Unsat(Conflict { solver: self })
+            SatResult::Unsat(Unsat { solver: self })
         }
     }
 
@@ -329,28 +329,29 @@ impl Solver {
         self.vsids.disable_fast();
     }
 
-    /// # Safety
-    /// unsafe get sat model
-    pub unsafe fn get_model(&self) -> Model<'static> {
-        let solver = unsafe { &*(self as *const Self) };
-        Model { solver }
-    }
+    // /// # Safety
+    // /// unsafe get sat model
+    // pub unsafe fn get_model(&self) -> Model<'static> {
+    //     let solver = unsafe { &*(self as *const Self) };
+    //     Sat { solver }
+    // }
 
-    /// # Safety
-    /// unsafe get unsat core
-    pub unsafe fn get_conflict(&self) -> Conflict<'static> {
-        let solver = unsafe { &*(self as *const Self) };
-        Conflict { solver }
-    }
+    // /// # Safety
+    // /// unsafe get unsat core
+    // pub unsafe fn get_conflict(&self) -> Conflict<'static> {
+    //     let solver = unsafe { &*(self as *const Self) };
+    //     Conflict { solver }
+    // }
 }
 
-pub struct Model<'a> {
-    solver: &'a Solver,
+pub struct Sat {
+    solver: *mut Solver,
 }
 
-impl Model<'_> {
-    pub fn lit_value(&self, lit: Lit) -> Option<bool> {
-        match self.solver.value.v(lit) {
+impl SatifSat for Sat {
+    fn lit_value(&self, lit: Lit) -> Option<bool> {
+        let solver = unsafe { &*self.solver };
+        match solver.value.v(lit) {
             Lbool::TRUE => Some(true),
             Lbool::FALSE => Some(false),
             _ => None,
@@ -358,26 +359,13 @@ impl Model<'_> {
     }
 }
 
-pub struct Conflict<'a> {
-    solver: &'a Solver,
+pub struct Unsat {
+    solver: *mut Solver,
 }
 
-impl Conflict<'_> {
-    pub fn has(&self, lit: Lit) -> bool {
-        self.solver.unsat_core.has(lit)
-    }
-}
-
-pub enum SatResult<'a> {
-    Sat(Model<'a>),
-    Unsat(Conflict<'a>),
-}
-
-impl Debug for SatResult<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Sat(_) => "Sat".fmt(f),
-            Self::Unsat(_) => "Unsat".fmt(f),
-        }
+impl SatifUnsat for Unsat {
+    fn has(&self, lit: Lit) -> bool {
+        let solver = unsafe { &*self.solver };
+        solver.unsat_core.has(lit)
     }
 }
