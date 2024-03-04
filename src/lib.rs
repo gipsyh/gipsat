@@ -184,7 +184,8 @@ impl Solver {
 
         if !self.temporary_domain {
             if let Some(domain) = domain {
-                self.domain.enable_local(domain, self.ts.as_ref().unwrap());
+                self.domain
+                    .enable_local(domain, self.ts.as_ref().unwrap(), &self.value);
                 if self.constrain_act.is_some() {
                     assert!(
                         self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp
@@ -275,13 +276,6 @@ impl Solver {
     }
 
     pub fn set_domain(&mut self, domain: impl Iterator<Item = Lit>) {
-        self.domain
-            .enable_local(domain.map(|l| l.var()), self.ts.as_ref().unwrap());
-        assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
-        self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
-        self.domain
-            .local_marks
-            .push(self.constrain_act.unwrap().var());
         self.temporary_domain = true;
         self.clean_temporary();
         if !self.pos_in_trail.is_empty() {
@@ -293,21 +287,23 @@ impl Solver {
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
         }
+        self.domain.enable_local(
+            domain.map(|l| l.var()),
+            self.ts.as_ref().unwrap(),
+            &self.value,
+        );
+        assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
+        self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
+        self.domain
+            .local_marks
+            .push(self.constrain_act.unwrap().var());
         self.vsids
             .enable_fast(self.domain.domains().copied().collect());
     }
 
     pub fn set_sub_domain(&mut self, domain: impl Iterator<Item = Lit>) {
-        self.domain
-            .enable_local(domain.map(|l| l.var()), self.ts.as_ref().unwrap());
-        assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
-        self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
-        self.domain
-            .local_marks
-            .push(self.constrain_act.unwrap().var());
         self.temporary_domain = true;
         self.clean_temporary();
-
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
@@ -317,6 +313,16 @@ impl Solver {
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
         }
+        self.domain.enable_local(
+            domain.map(|l| l.var()),
+            self.ts.as_ref().unwrap(),
+            &self.value,
+        );
+        assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
+        self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
+        self.domain
+            .local_marks
+            .push(self.constrain_act.unwrap().var());
         assert!(self.vsids.fast);
         self.vsids.bucket.clear();
         for v in self.domain.domains() {
@@ -328,20 +334,6 @@ impl Solver {
         self.temporary_domain = false;
         self.vsids.disable_fast();
     }
-
-    // /// # Safety
-    // /// unsafe get sat model
-    // pub unsafe fn get_model(&self) -> Model<'static> {
-    //     let solver = unsafe { &*(self as *const Self) };
-    //     Sat { solver }
-    // }
-
-    // /// # Safety
-    // /// unsafe get unsat core
-    // pub unsafe fn get_conflict(&self) -> Conflict<'static> {
-    //     let solver = unsafe { &*(self as *const Self) };
-    //     Conflict { solver }
-    // }
 }
 
 pub struct Sat {

@@ -1,4 +1,4 @@
-use std::ops::Not;
+use std::{fmt::Debug, ops::Not};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Lbool(pub u8);
@@ -34,6 +34,17 @@ impl From<bool> for Lbool {
 impl Default for Lbool {
     fn default() -> Self {
         Self::NONE
+    }
+}
+
+impl Debug for Lbool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let field = match *self {
+            Lbool::TRUE => Some(true),
+            Lbool::FALSE => Some(false),
+            _ => None,
+        };
+        f.debug_tuple("Lbool").field(&field).finish()
     }
 }
 

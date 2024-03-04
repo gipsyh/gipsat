@@ -1,4 +1,4 @@
-use crate::ts::TransitionSystem;
+use crate::{search::Value, ts::TransitionSystem};
 use logic_form::{Var, VarMap, VarSet};
 use std::slice;
 
@@ -18,7 +18,12 @@ impl Domain {
         self.local.reserve(var);
     }
 
-    pub fn enable_local(&mut self, domain: impl Iterator<Item = Var>, ts: &TransitionSystem) {
+    pub fn enable_local(
+        &mut self,
+        domain: impl Iterator<Item = Var>,
+        ts: &TransitionSystem,
+        value: &Value,
+    ) {
         self.local_stamp += 1;
         self.local_marks.clear();
         ts.get_coi(
@@ -26,9 +31,10 @@ impl Domain {
             self.local_stamp,
             &mut self.local,
             &mut self.local_marks,
+            value,
         );
         for l in self.lemma.iter() {
-            if self.local[*l] != self.local_stamp {
+            if value.v(l.lit()).is_none() && self.local[*l] != self.local_stamp {
                 self.local[*l] = self.local_stamp;
                 self.local_marks.push(*l);
             }

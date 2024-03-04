@@ -1,5 +1,7 @@
 use logic_form::{Var, VarMap};
 
+use crate::search::Value;
+
 pub struct TransitionSystem {
     dependence: VarMap<Vec<Var>>,
 }
@@ -15,9 +17,10 @@ impl TransitionSystem {
         mark_stamp: u32,
         mark: &mut VarMap<u32>,
         marks: &mut Vec<Var>,
+        value: &Value,
     ) {
         for r in root {
-            if mark[r] != mark_stamp {
+            if value.v(r.lit()).is_none() && mark[r] != mark_stamp {
                 marks.push(r);
                 mark[r] = mark_stamp;
             }
@@ -27,7 +30,7 @@ impl TransitionSystem {
             let v = marks[now];
             now += 1;
             for d in self.dependence[v].iter() {
-                if mark[*d] != mark_stamp {
+                if value.v(d.lit()).is_none() && mark[*d] != mark_stamp {
                     marks.push(*d);
                     mark[*d] = mark_stamp;
                 }
