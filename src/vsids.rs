@@ -1,11 +1,12 @@
 use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
+use giputils::gvec::Gvec;
 use logic_form::{Lit, Var, VarMap};
 use std::ops::MulAssign;
 
 pub struct Vsids {
     activity: VarMap<f64>,
-    heap: Vec<Var>,
-    pos: VarMap<Option<usize>>,
+    heap: Gvec<Var>,
+    pos: VarMap<Option<u32>>,
     act_inc: f64,
 
     pub bucket: Bucket,
@@ -42,7 +43,7 @@ impl Vsids {
     }
 
     #[inline]
-    fn up(&mut self, mut idx: usize) {
+    fn up(&mut self, mut idx: u32) {
         let v = self.heap[idx];
         while idx != 0 {
             let pidx = (idx - 1) >> 1;
@@ -58,7 +59,7 @@ impl Vsids {
     }
 
     #[inline]
-    fn down(&mut self, mut idx: usize) {
+    fn down(&mut self, mut idx: u32) {
         let v = self.heap[idx];
         loop {
             let left = (idx << 1) + 1;
@@ -152,21 +153,21 @@ impl Vsids {
 
 #[derive(Default)]
 pub struct Bucket {
-    buckets: Vec<Vec<Var>>,
-    var_bucket: VarMap<usize>,
+    buckets: Gvec<Gvec<Var>>,
+    var_bucket: VarMap<u32>,
     in_bucket: VarMap<bool>,
-    head: usize,
+    head: u32,
 }
 
 impl Bucket {
     pub fn create(&mut self, vars: Vec<Var>) {
         self.clear();
         let num_bucket = 20;
-        self.buckets.resize_with(num_bucket, Default::default);
+        self.buckets.reserve(num_bucket);
         let bicket_len = vars.len() / num_bucket + 1;
         self.head = 0;
         for (i, var) in vars.into_iter().enumerate() {
-            let bucket = i / bicket_len;
+            let bucket = (i / bicket_len) as u32;
             self.var_bucket[var] = bucket;
             self.buckets[bucket].push(var);
             assert!(!self.in_bucket[var]);
@@ -174,6 +175,7 @@ impl Bucket {
         }
     }
 
+    #[inline]
     pub fn reserve(&mut self, var: Var) {
         self.var_bucket.reserve(var);
         self.in_bucket.reserve(var);

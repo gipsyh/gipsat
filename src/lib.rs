@@ -52,21 +52,21 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new(name: &str) -> Self {
-        Self {
+    pub fn new(name: &str, num_var: usize, cnf: &[Clause], dep: &VarMap<Vec<Var>>) -> Self {
+        let mut solver = Self {
             name: name.to_string(),
             ..Default::default()
-        }
-    }
-
-    pub fn set_ts(&mut self, num_var: usize, cnf: &[Clause], dep: &VarMap<Vec<Var>>) {
-        while self.num_var() < num_var {
-            self.new_var();
+        };
+        let false_lit: Lit = solver.new_var().into();
+        solver.add_clause_inner(&[!false_lit], ClauseKind::Trans);
+        while solver.num_var() < num_var {
+            solver.new_var();
         }
         for cls in cnf.iter() {
-            self.add_clause_inner(cls, ClauseKind::Trans);
+            solver.add_clause_inner(cls, ClauseKind::Trans);
         }
-        self.ts = Some(TransitionSystem::new(dep.clone()))
+        solver.ts = Some(TransitionSystem::new(dep.clone()));
+        solver
     }
 
     pub fn new_var(&mut self) -> Var {
@@ -111,7 +111,6 @@ impl Solver {
             None => return,
         };
         for l in clause.iter() {
-            self.domain.global.insert(l.var());
             if let Some(act) = self.constrain_act {
                 if act.var() == l.var() {
                     kind = ClauseKind::Temporary;
@@ -124,20 +123,12 @@ impl Solver {
                 Lbool::TRUE | Lbool::FALSE => todo!(),
                 _ => {
                     self.assign(clause[0], CREF_NONE);
-                    assert!(self.propagate().is_none());
+                    assert!(self.propagate() == CREF_NONE);
                 }
             }
         } else {
             self.attach_clause(&clause, kind);
         }
-    }
-
-    pub fn add_clause_direct(&mut self, clause: &[Lit]) {
-        self.add_clause_inner(clause, ClauseKind::Trans);
-    }
-
-    pub fn add_clause(&mut self, clause: &[Lit]) {
-        self.lazy_clauses.push(Clause::from(clause));
     }
 
     pub fn add_lemma(&mut self, lemma: &[Lit]) {
@@ -148,9 +139,6 @@ impl Solver {
     }
 
     fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>) {
-        if !self.temporary_domain {
-            self.domain.disable_local();
-        }
         self.clean_temporary();
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
@@ -248,7 +236,6 @@ impl Solver {
         if self.constrain_act.is_none() {
             let constrain_act = self.new_var();
             self.constrain_act = Some(constrain_act.lit());
-            self.domain.global.insert(constrain_act);
         }
         let act = self.constrain_act.unwrap();
         let mut assumption = Cube::new();
@@ -341,6 +328,7 @@ pub struct Sat {
 }
 
 impl SatifSat for Sat {
+    #[inline]
     fn lit_value(&self, lit: Lit) -> Option<bool> {
         let solver = unsafe { &*self.solver };
         match solver.value.v(lit) {
@@ -356,6 +344,7 @@ pub struct Unsat {
 }
 
 impl SatifUnsat for Unsat {
+    #[inline]
     fn has(&self, lit: Lit) -> bool {
         let solver = unsafe { &*self.solver };
         solver.unsat_core.has(lit)

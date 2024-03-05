@@ -3,17 +3,14 @@ use logic_form::{Var, VarMap, VarSet};
 use std::slice;
 
 pub struct Domain {
-    pub global: VarSet,
     pub lemma: VarSet,
     pub local_stamp: u32,
     pub local: VarMap<u32>,
     pub local_marks: Vec<Var>,
-    enable_local: bool,
 }
 
 impl Domain {
     pub fn reserve(&mut self, var: Var) {
-        self.global.reserve(var);
         self.lemma.reserve(var);
         self.local.reserve(var);
     }
@@ -39,40 +36,25 @@ impl Domain {
                 self.local_marks.push(*l);
             }
         }
-        self.enable_local = true;
-    }
-
-    pub fn disable_local(&mut self) {
-        self.enable_local = false;
     }
 
     #[inline]
     pub fn has(&self, var: Var) -> bool {
-        if self.enable_local {
-            self.local[var] == self.local_stamp
-        } else {
-            self.global.has(var)
-        }
+        self.local[var] == self.local_stamp
     }
 
     pub fn domains(&self) -> slice::Iter<Var> {
-        if self.enable_local {
-            self.local_marks.iter()
-        } else {
-            self.global.iter()
-        }
+        self.local_marks.iter()
     }
 }
 
 impl Default for Domain {
     fn default() -> Self {
         Self {
-            global: Default::default(),
             lemma: Default::default(),
             local_stamp: 1,
             local: Default::default(),
             local_marks: Default::default(),
-            enable_local: Default::default(),
         }
     }
 }

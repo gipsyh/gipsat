@@ -1,5 +1,5 @@
 use crate::{
-    cdb::{CRef, Clause},
+    cdb::{CRef, Clause, CREF_NONE},
     utils::Lbool,
     Solver,
 };
@@ -51,12 +51,11 @@ impl Watchers {
 }
 
 impl Solver {
-    pub fn propagate(&mut self) -> Option<CRef> {
+    pub fn propagate(&mut self) -> CRef {
         let propagate_full = self.highest_level() == 0;
         while self.propagated < self.trail.len() {
             let p = self.trail[self.propagated];
             self.propagated += 1;
-
             let mut w = 0;
             'next_cls: while w < self.watchers.wtrs[p].len() {
                 let watchers = &mut self.watchers.wtrs[p];
@@ -79,7 +78,7 @@ impl Solver {
                 if cref[0] == !p {
                     cref.swap(0, 1);
                 }
-                assert!(cref[1] == !p);
+                debug_assert!(cref[1] == !p);
                 let new_watcher = Watcher::new(cid, cref[0]);
                 match self.value.v(cref[0]) {
                     Lbool::TRUE => {
@@ -108,7 +107,7 @@ impl Solver {
                 }
                 watchers[w] = new_watcher;
                 if self.value.v(cref[0]).is_false() {
-                    return Some(cid);
+                    return cid;
                 }
                 if propagate_full || self.domain.has(cref[0].var()) {
                     let assign = cref[0];
@@ -117,6 +116,6 @@ impl Solver {
                 w += 1;
             }
         }
-        None
+        CREF_NONE
     }
 }

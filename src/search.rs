@@ -67,7 +67,8 @@ impl Solver {
 
     pub fn search(&mut self, assumption: &[Lit]) -> bool {
         'ml: loop {
-            if let Some(conflict) = self.propagate() {
+            let conflict = self.propagate();
+            if conflict != CREF_NONE {
                 if self.highest_level() == 0 {
                     return false;
                 }

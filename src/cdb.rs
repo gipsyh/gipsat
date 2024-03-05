@@ -5,13 +5,16 @@ use std::{
     mem::take,
     ops::{AddAssign, Index, MulAssign},
     ptr,
+    slice::from_raw_parts,
 };
 
 #[bitfield(u32)]
 struct Header {
+    trans: bool,
     learnt: bool,
     reloced: bool,
-    #[bits(30)]
+    marked: bool,
+    #[bits(28)]
     len: usize,
 }
 
@@ -29,6 +32,7 @@ pub struct Clause {
     data: *mut Data,
 }
 
+#[allow(unused)]
 impl Clause {
     #[inline]
     pub fn len(&self) -> usize {
@@ -36,8 +40,28 @@ impl Clause {
     }
 
     #[inline]
-    fn is_learnt(&self) -> bool {
+    pub fn is_trans(&self) -> bool {
+        unsafe { (*self.data).header.trans() }
+    }
+
+    #[inline]
+    pub fn is_learnt(&self) -> bool {
         unsafe { (*self.data).header.learnt() }
+    }
+
+    #[inline]
+    pub fn is_marked(&self) -> bool {
+        unsafe { (*self.data).header.marked() }
+    }
+
+    #[inline]
+    pub fn mark(&mut self) {
+        unsafe { (*self.data).header.set_marked(true) }
+    }
+
+    #[inline]
+    pub fn unmark(&mut self) {
+        unsafe { (*self.data).header.set_marked(false) }
     }
 
     #[inline]
@@ -67,6 +91,11 @@ impl Clause {
             (*self.data).header.set_len(len - 1);
         };
     }
+
+    #[inline]
+    pub fn slice(&self) -> &[Lit] {
+        unsafe { from_raw_parts(self.data.add(1) as *const Lit, self.len()) }
+    }
 }
 
 impl Index<usize> for Clause {
@@ -84,12 +113,14 @@ pub struct CRef(u32);
 pub const CREF_NONE: CRef = CRef(u32::MAX);
 
 impl Default for CRef {
+    #[inline]
     fn default() -> Self {
         CREF_NONE
     }
 }
 
 impl From<usize> for CRef {
+    #[inline]
     fn from(value: usize) -> Self {
         Self(value as _)
     }
@@ -123,7 +154,8 @@ impl Allocator {
     }
 
     #[inline]
-    fn alloc(&mut self, clause: &[Lit], learnt: bool) -> CRef {
+    fn alloc(&mut self, clause: &[Lit], trans: bool, learnt: bool) -> CRef {
+        assert!(!(trans && learnt));
         let cid = self.data.len();
         let mut additional = clause.len() + 1;
         if learnt {
@@ -131,7 +163,10 @@ impl Allocator {
         }
         self.data.reserve(additional);
         unsafe { self.data.set_len(self.data.len() + additional) };
-        self.data[cid].header = Header::new().with_len(clause.len()).with_learnt(learnt);
+        self.data[cid].header = Header::new()
+            .with_len(clause.len())
+            .with_trans(trans)
+            .with_learnt(learnt);
         for (i, lit) in clause.iter().enumerate() {
             self.data[cid + 1 + i].lit = *lit;
         }
@@ -186,6 +221,7 @@ impl Default for Allocator {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum ClauseKind {
     Trans,
     Lemma,
@@ -210,9 +246,11 @@ impl ClauseDB {
 
     #[inline]
     pub fn alloc(&mut self, clause: &[Lit], kind: ClauseKind) -> CRef {
-        let cid = self
-            .allocator
-            .alloc(clause, matches!(kind, ClauseKind::Learnt));
+        let cid = self.allocator.alloc(
+            clause,
+            matches!(kind, ClauseKind::Trans),
+            matches!(kind, ClauseKind::Learnt),
+        );
         match kind {
             ClauseKind::Trans => self.trans.push(cid),
             ClauseKind::Lemma => self.lemma.push(cid),
@@ -361,13 +399,13 @@ impl Solver {
 
     pub fn clausedb_simplify_satisfied(&mut self) {
         assert!(self.highest_level() == 0);
-        assert!(self.propagate().is_none());
+        assert!(self.propagate() == CREF_NONE);
         let learnt = take(&mut self.cdb.learnt);
         self.cdb.learnt = self.simplify_clauses(learnt);
-        let origin = take(&mut self.cdb.trans);
-        self.cdb.trans = self.simplify_clauses(origin);
-        let origin = take(&mut self.cdb.lemma);
-        self.cdb.lemma = self.simplify_clauses(origin);
+        let trans = take(&mut self.cdb.trans);
+        self.cdb.trans = self.simplify_clauses(trans);
+        let lemma = take(&mut self.cdb.lemma);
+        self.cdb.lemma = self.simplify_clauses(lemma);
         self.garbage_collect();
     }
 
