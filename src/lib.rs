@@ -57,8 +57,6 @@ impl Solver {
             name: name.to_string(),
             ..Default::default()
         };
-        let false_lit: Lit = solver.new_var().into();
-        solver.add_clause_inner(&[!false_lit], ClauseKind::Trans);
         while solver.num_var() < num_var {
             solver.new_var();
         }
@@ -190,21 +188,6 @@ impl Solver {
                     self.vsids.push(*d);
                 }
             }
-        }
-    }
-
-    pub fn solve(&mut self, assumption: &[Lit]) -> SatResult<Sat, Unsat> {
-        self.new_round(None::<std::option::IntoIter<Var>>);
-        self.statistic.num_solve += 1;
-        if self.statistic.num_solve % 1000 == 1 {
-            self.clean_leanrt();
-            self.simplify();
-        }
-        self.garbage_collect();
-        if self.search(assumption) {
-            SatResult::Sat(Sat { solver: self })
-        } else {
-            SatResult::Unsat(Unsat { solver: self })
         }
     }
 
