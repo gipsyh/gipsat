@@ -164,10 +164,10 @@ impl Bucket {
         self.clear();
         let num_bucket = 20;
         self.buckets.reserve(num_bucket);
-        let bicket_len = vars.len() / num_bucket + 1;
+        let bicket_len = vars.len() as u32 / num_bucket + 1;
         self.head = 0;
         for (i, var) in vars.into_iter().enumerate() {
-            let bucket = (i / bicket_len) as u32;
+            let bucket = i as u32 / bicket_len;
             self.var_bucket[var] = bucket;
             self.buckets[bucket].push(var);
             assert!(!self.in_bucket[var]);
