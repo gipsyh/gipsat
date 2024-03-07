@@ -1,8 +1,9 @@
 use crate::Solver;
 use bitfield_struct::bitfield;
 use giputils::gvec::Gvec;
-use logic_form::Lit;
+use logic_form::{Cube, Lemma, Lit};
 use std::{
+    collections::HashSet,
     mem::take,
     ops::{AddAssign, Index, MulAssign},
     ptr,
@@ -351,6 +352,9 @@ impl Solver {
     }
 
     pub fn clean_leanrt(&mut self) {
+        if self.statistic.num_solve % 1000 != 1 {
+            return;
+        }
         // assert!(self.highest_level() == 0);
         // if self.cdb.learnt.len() * 4 < self.cdb.trans.len() {
         //     return;
@@ -420,6 +424,45 @@ impl Solver {
         let lemma = take(&mut self.cdb.lemma);
         self.cdb.lemma = self.simplify_clauses(lemma);
         self.garbage_collect();
+    }
+
+    pub fn lemma_subsumption_simplify(&mut self) {
+        assert!(self.highest_level() == 0);
+        self.cdb
+            .lemma
+            .sort_unstable_by_key(|l| self.cdb.allocator.get(*l).len());
+        let lemma: Vec<Lemma> = self
+            .cdb
+            .lemma
+            .iter()
+            .map(|l| {
+                let c = self.cdb.get(*l);
+                Lemma::new(Cube::from_iter(c.slice().iter().copied()))
+            })
+            .collect();
+        let mut remove = HashSet::new();
+        for i in 0..lemma.len() {
+            for j in 0..i {
+                if lemma[j].ordered_subsume(&lemma[i]) {
+                    remove.insert(i as u32);
+                    break;
+                }
+            }
+        }
+        let lemma = take(&mut self.cdb.lemma);
+        for i in 0..lemma.len() {
+            if !remove.contains(&i) {
+                self.cdb.lemma.push(lemma[i]);
+                continue;
+            }
+            let cls = self.cdb.get(lemma[i]);
+            if !self.locked(cls) {
+                self.remove_clause(lemma[i]);
+            } else {
+                dbg!("locked success");
+                self.cdb.lemma.push(lemma[i]);
+            }
+        }
     }
 
     pub fn garbage_collect(&mut self) {

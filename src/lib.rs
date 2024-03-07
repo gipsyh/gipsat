@@ -219,10 +219,8 @@ impl Solver {
             self.new_round(None::<std::option::IntoIter<Var>>);
         };
         self.statistic.num_solve += 1;
-        if self.statistic.num_solve % 1000 == 1 {
-            self.clean_leanrt();
-            self.simplify();
-        }
+        self.clean_leanrt();
+        self.simplify();
         self.garbage_collect();
         if self.search(assumption) {
             SatResult::Sat(Sat { solver: self })
@@ -254,10 +252,8 @@ impl Solver {
             self.new_round(None::<std::option::IntoIter<Var>>);
         };
         self.statistic.num_solve += 1;
-        if self.statistic.num_solve % 1000 == 1 {
-            self.clean_leanrt();
-            self.simplify();
-        }
+        self.clean_leanrt();
+        self.simplify();
         self.garbage_collect();
         if self.search(&assumption) {
             SatResult::Sat(Sat { solver: self })
