@@ -4,10 +4,10 @@ use logic_form::{Lit, Var, VarMap};
 use std::ops::MulAssign;
 
 pub struct Vsids {
-    activity: VarMap<f64>,
+    pub activity: VarMap<f64>,
     heap: Gvec<Var>,
     pos: VarMap<Option<u32>>,
-    act_inc: f64,
+    pub act_inc: f64,
 
     pub bucket: Bucket,
     pub fast: bool,

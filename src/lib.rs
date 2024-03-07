@@ -19,6 +19,7 @@ use propagate::Watchers;
 use satif::{SatResult, SatifSat, SatifUnsat};
 use search::Value;
 use statistic::Statistic;
+use std::rc::Rc;
 use ts::TransitionSystem;
 use vsids::Vsids;
 
@@ -63,7 +64,7 @@ impl Solver {
         for cls in cnf.iter() {
             solver.add_clause_inner(cls, ClauseKind::Trans);
         }
-        solver.ts = Some(TransitionSystem::new(dep.clone()));
+        solver.ts = Some(TransitionSystem::new(Rc::new(dep.clone())));
         solver
     }
 
@@ -84,6 +85,25 @@ impl Solver {
     #[inline]
     pub fn num_var(&self) -> usize {
         self.reason.len()
+    }
+
+    pub fn new_frame(&self, name: &str, cnf: &[Clause]) -> Self {
+        let mut solver = Self {
+            name: name.to_string(),
+            ..Default::default()
+        };
+        while solver.num_var() < self.num_var() {
+            solver.new_var();
+        }
+        solver.vsids.activity = self.vsids.activity.clone();
+        solver.vsids.act_inc = self.vsids.act_inc;
+        for cls in cnf.iter() {
+            solver.add_clause_inner(cls, ClauseKind::Trans);
+        }
+        solver.ts = Some(TransitionSystem::new(
+            self.ts.as_ref().unwrap().dependence.clone(),
+        ));
+        solver
     }
 
     fn simplify_clause(&mut self, cls: &[Lit]) -> Option<logic_form::Clause> {

@@ -1,13 +1,13 @@
-use logic_form::{Var, VarMap};
-
 use crate::search::Value;
+use logic_form::{Var, VarMap};
+use std::rc::Rc;
 
 pub struct TransitionSystem {
-    dependence: VarMap<Vec<Var>>,
+    pub dependence: Rc<VarMap<Vec<Var>>>,
 }
 
 impl TransitionSystem {
-    pub fn new(dependence: VarMap<Vec<Var>>) -> Self {
+    pub fn new(dependence: Rc<VarMap<Vec<Var>>>) -> Self {
         Self { dependence }
     }
 
