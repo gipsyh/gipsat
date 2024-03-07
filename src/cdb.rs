@@ -1,5 +1,6 @@
 use crate::Solver;
 use bitfield_struct::bitfield;
+use giputils::gvec::Gvec;
 use logic_form::Lit;
 use std::{
     mem::take,
@@ -231,10 +232,10 @@ pub enum ClauseKind {
 
 pub struct ClauseDB {
     allocator: Allocator,
-    trans: Vec<CRef>,
-    lemma: Vec<CRef>,
-    learnt: Vec<CRef>,
-    temporary: Vec<CRef>,
+    trans: Gvec<CRef>,
+    lemma: Gvec<CRef>,
+    learnt: Gvec<CRef>,
+    temporary: Gvec<CRef>,
     act_inc: f32,
 }
 
@@ -287,6 +288,18 @@ impl ClauseDB {
     #[inline]
     pub fn decay(&mut self) {
         self.act_inc *= 1.0 / Self::DECAY
+    }
+
+    #[inline]
+    #[allow(unused)]
+    pub fn num_lemma(&self) -> u32 {
+        self.lemma.len()
+    }
+
+    #[inline]
+    #[allow(unused)]
+    pub fn num_leanrt(&self) -> u32 {
+        self.learnt.len()
     }
 }
 
@@ -374,8 +387,8 @@ impl Solver {
         }
     }
 
-    fn simplify_clauses(&mut self, mut clauses: Vec<CRef>) -> Vec<CRef> {
-        let mut i: usize = 0;
+    fn simplify_clauses(&mut self, mut clauses: Gvec<CRef>) -> Gvec<CRef> {
+        let mut i = 0;
         while i < clauses.len() {
             let cid = clauses[i];
             if self.clause_satisfied(cid) {

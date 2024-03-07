@@ -170,11 +170,12 @@ impl Solver {
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
         }
+
         // dbg!(&self.name);
         // dbg!(self.num_var());
         // dbg!(self.trail.len());
-        // dbg!(self.cdb.num_learnt());
-        // dbg!(self.cdb.num_origin());
+        // dbg!(self.cdb.num_leanrt());
+        // dbg!(self.cdb.num_lemma());
 
         while let Some(lc) = self.lazy_clauses.pop() {
             self.add_clause_inner(&lc, ClauseKind::Trans);
