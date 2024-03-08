@@ -1,12 +1,10 @@
 use crate::{search::Value, ts::TransitionSystem};
-use logic_form::{Var, VarMap, VarSet};
+use logic_form::{Var, VarSet};
 use std::slice;
 
 pub struct Domain {
     pub lemma: VarSet,
-    pub local_stamp: u32,
-    pub local: VarMap<u32>,
-    pub local_marks: Vec<Var>,
+    pub local: VarSet,
 }
 
 impl Domain {
@@ -21,30 +19,22 @@ impl Domain {
         ts: &TransitionSystem,
         value: &Value,
     ) {
-        self.local_stamp += 1;
-        self.local_marks.clear();
-        ts.get_coi(
-            domain,
-            self.local_stamp,
-            &mut self.local,
-            &mut self.local_marks,
-            value,
-        );
+        self.local.clear();
+        ts.get_coi(domain, &mut self.local, value);
         for l in self.lemma.iter() {
-            if value.v(l.lit()).is_none() && self.local[*l] != self.local_stamp {
-                self.local[*l] = self.local_stamp;
-                self.local_marks.push(*l);
+            if value.v(l.lit()).is_none() {
+                self.local.insert(*l);
             }
         }
     }
 
     #[inline]
     pub fn has(&self, var: Var) -> bool {
-        self.local[var] == self.local_stamp
+        self.local.has(var)
     }
 
     pub fn domains(&self) -> slice::Iter<Var> {
-        self.local_marks.iter()
+        self.local.iter()
     }
 }
 
@@ -52,9 +42,7 @@ impl Default for Domain {
     fn default() -> Self {
         Self {
             lemma: Default::default(),
-            local_stamp: 1,
             local: Default::default(),
-            local_marks: Default::default(),
         }
     }
 }

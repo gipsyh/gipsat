@@ -1,5 +1,5 @@
 use crate::search::Value;
-use logic_form::{Var, VarMap};
+use logic_form::{Var, VarMap, VarSet};
 use std::rc::Rc;
 
 pub struct TransitionSystem {
@@ -11,28 +11,19 @@ impl TransitionSystem {
         Self { dependence }
     }
 
-    pub fn get_coi(
-        &self,
-        root: impl Iterator<Item = Var>,
-        mark_stamp: u32,
-        mark: &mut VarMap<u32>,
-        marks: &mut Vec<Var>,
-        value: &Value,
-    ) {
+    pub fn get_coi(&self, root: impl Iterator<Item = Var>, mark: &mut VarSet, value: &Value) {
         for r in root {
-            if value.v(r.lit()).is_none() && mark[r] != mark_stamp {
-                marks.push(r);
-                mark[r] = mark_stamp;
+            if value.v(r.lit()).is_none() {
+                mark.insert(r);
             }
         }
         let mut now = 0;
-        while now < marks.len() {
-            let v = marks[now];
+        while now < mark.len() {
+            let v = mark[now];
             now += 1;
             for d in self.dependence[v].iter() {
-                if value.v(d.lit()).is_none() && mark[*d] != mark_stamp {
-                    marks.push(*d);
-                    mark[*d] = mark_stamp;
+                if value.v(d.lit()).is_none() {
+                    mark.insert(*d);
                 }
             }
         }

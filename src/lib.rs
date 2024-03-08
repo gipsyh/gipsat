@@ -194,13 +194,8 @@ impl Solver {
                 self.domain
                     .enable_local(domain, self.ts.as_ref().unwrap(), &self.value);
                 if self.constrain_act.is_some() {
-                    assert!(
-                        self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp
-                    );
-                    self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
-                    self.domain
-                        .local_marks
-                        .push(self.constrain_act.unwrap().var());
+                    assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
+                    self.domain.local.insert(self.constrain_act.unwrap().var());
                 }
             }
             self.vsids.clear();
@@ -279,11 +274,8 @@ impl Solver {
             self.ts.as_ref().unwrap(),
             &self.value,
         );
-        assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
-        self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
-        self.domain
-            .local_marks
-            .push(self.constrain_act.unwrap().var());
+        assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
+        self.domain.local.insert(self.constrain_act.unwrap().var());
         self.vsids
             .enable_fast(self.domain.domains().copied().collect());
     }
@@ -305,11 +297,8 @@ impl Solver {
             self.ts.as_ref().unwrap(),
             &self.value,
         );
-        assert!(self.domain.local[self.constrain_act.unwrap()] != self.domain.local_stamp);
-        self.domain.local[self.constrain_act.unwrap()] = self.domain.local_stamp;
-        self.domain
-            .local_marks
-            .push(self.constrain_act.unwrap().var());
+        assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
+        self.domain.local.insert(self.constrain_act.unwrap().var());
         assert!(self.vsids.fast);
         self.vsids.bucket.clear();
         for v in self.domain.domains() {
