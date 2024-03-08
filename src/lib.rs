@@ -18,6 +18,7 @@ use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
 use satif::{SatResult, SatifSat, SatifUnsat};
 use search::Value;
+use simplify::Simplify;
 use statistic::Statistic;
 use std::rc::Rc;
 use ts::TransitionSystem;
@@ -37,6 +38,7 @@ pub struct Solver {
     vsids: Vsids,
     phase_saving: VarMap<Lbool>,
     analyze: Analyze,
+    simplify: Simplify,
     unsat_core: LitSet,
 
     domain: Domain,

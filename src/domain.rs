@@ -2,6 +2,7 @@ use crate::{search::Value, ts::TransitionSystem};
 use logic_form::{Var, VarSet};
 use std::slice;
 
+#[derive(Default)]
 pub struct Domain {
     pub lemma: VarSet,
     pub local: VarSet,
@@ -35,14 +36,5 @@ impl Domain {
 
     pub fn domains(&self) -> slice::Iter<Var> {
         self.local.iter()
-    }
-}
-
-impl Default for Domain {
-    fn default() -> Self {
-        Self {
-            lemma: Default::default(),
-            local: Default::default(),
-        }
     }
 }

@@ -414,9 +414,8 @@ impl Solver {
         clauses
     }
 
-    pub fn clausedb_simplify_satisfied(&mut self) {
+    pub fn simplify_satisfied(&mut self) {
         assert!(self.highest_level() == 0);
-        assert!(self.propagate() == CREF_NONE);
         let learnt = take(&mut self.cdb.learnt);
         self.cdb.learnt = self.simplify_clauses(learnt);
         let trans = take(&mut self.cdb.trans);
