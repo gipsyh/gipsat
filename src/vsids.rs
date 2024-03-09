@@ -6,6 +6,97 @@ use std::{
     rc::Rc,
 };
 
+#[derive(Default)]
+struct BinaryHeap {
+    heap: Gvec<Var>,
+    pos: VarMap<Option<u32>>,
+}
+
+impl BinaryHeap {
+    #[inline]
+    pub fn reserve(&mut self, var: Var) {
+        self.pos.reserve(var);
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        for v in self.heap.iter() {
+            self.pos[*v] = None;
+        }
+        self.heap.clear();
+    }
+
+    #[inline]
+    fn up(&mut self, mut idx: u32, activity: &Activity) {
+        let v = self.heap[idx];
+        while idx != 0 {
+            let pidx = (idx - 1) >> 1;
+            if activity[self.heap[pidx]] >= activity[v] {
+                break;
+            }
+            self.heap[idx] = self.heap[pidx];
+            self.pos[self.heap[idx]] = Some(idx);
+            idx = pidx;
+        }
+        self.heap[idx] = v;
+        self.pos[v] = Some(idx);
+    }
+
+    #[inline]
+    fn down(&mut self, mut idx: u32, activity: &Activity) {
+        let v = self.heap[idx];
+        loop {
+            let left = (idx << 1) + 1;
+            if left >= self.heap.len() {
+                break;
+            }
+            let right = left + 1;
+            let child = if right < self.heap.len()
+                && activity[self.heap[right]] > activity[self.heap[left]]
+            {
+                right
+            } else {
+                left
+            };
+            if activity[v] >= activity[self.heap[child]] {
+                break;
+            }
+            self.heap[idx] = self.heap[child];
+            self.pos[self.heap[idx]] = Some(idx);
+            idx = child;
+        }
+        self.heap[idx] = v;
+        self.pos[v] = Some(idx);
+    }
+
+    #[inline]
+    pub fn push(&mut self, var: Var, activity: &Activity) {
+        if self.pos[var].is_some() {
+            return;
+        }
+        let idx = self.heap.len();
+        self.heap.push(var);
+        self.pos[var] = Some(idx);
+        self.up(idx, activity);
+    }
+
+    #[inline]
+    pub fn pop(&mut self, activity: &Activity) -> Option<Var> {
+        if self.heap.is_empty() {
+            return None;
+        }
+        let value = self.heap[0];
+        self.heap[0] = self.heap[self.heap.len() - 1];
+        self.pos[self.heap[0]] = Some(0);
+        self.pos[value] = None;
+        self.heap.pop();
+        if self.heap.len() > 1 {
+            self.down(0, activity);
+        }
+        Some(value)
+    }
+}
+
 pub struct Activity {
     activity: VarMap<f64>,
     act_inc: f64,
@@ -55,9 +146,8 @@ impl Default for Activity {
 #[derive(Default)]
 pub struct Vsids {
     pub activity: Rc<Activity>,
-    heap: Gvec<Var>,
-    pos: VarMap<Option<u32>>,
 
+    heap: BinaryHeap,
     pub bucket: Bucket,
     pub fast: bool,
 }
@@ -65,60 +155,9 @@ pub struct Vsids {
 impl Vsids {
     #[inline]
     pub fn reserve(&mut self, var: Var) {
-        self.pos.reserve(var);
+        self.heap.reserve(var);
         self.bucket.reserve(var);
         unsafe { Rc::get_mut_unchecked(&mut self.activity).reserve(var) };
-    }
-
-    #[inline]
-    pub fn clear(&mut self) {
-        for v in self.heap.iter() {
-            self.pos[*v] = None;
-        }
-        self.heap.clear();
-    }
-
-    #[inline]
-    fn up(&mut self, mut idx: u32) {
-        let v = self.heap[idx];
-        while idx != 0 {
-            let pidx = (idx - 1) >> 1;
-            if self.activity[self.heap[pidx]] >= self.activity[v] {
-                break;
-            }
-            self.heap[idx] = self.heap[pidx];
-            self.pos[self.heap[idx]] = Some(idx);
-            idx = pidx;
-        }
-        self.heap[idx] = v;
-        self.pos[v] = Some(idx);
-    }
-
-    #[inline]
-    fn down(&mut self, mut idx: u32) {
-        let v = self.heap[idx];
-        loop {
-            let left = (idx << 1) + 1;
-            if left >= self.heap.len() {
-                break;
-            }
-            let right = left + 1;
-            let child = if right < self.heap.len()
-                && self.activity[self.heap[right]] > self.activity[self.heap[left]]
-            {
-                right
-            } else {
-                left
-            };
-            if self.activity[v] >= self.activity[self.heap[child]] {
-                break;
-            }
-            self.heap[idx] = self.heap[child];
-            self.pos[self.heap[idx]] = Some(idx);
-            idx = child;
-        }
-        self.heap[idx] = v;
-        self.pos[v] = Some(idx);
     }
 
     #[inline]
@@ -126,13 +165,7 @@ impl Vsids {
         if self.fast {
             return self.bucket.push(var);
         }
-        if self.pos[var].is_some() {
-            return;
-        }
-        let idx = self.heap.len();
-        self.heap.push(var);
-        self.pos[var] = Some(idx);
-        self.up(idx);
+        self.heap.push(var, &self.activity)
     }
 
     #[inline]
@@ -140,25 +173,19 @@ impl Vsids {
         if self.fast {
             return self.bucket.pop();
         }
-        if self.heap.is_empty() {
-            return None;
-        }
-        let value = self.heap[0];
-        self.heap[0] = self.heap[self.heap.len() - 1];
-        self.pos[self.heap[0]] = Some(0);
-        self.pos[value] = None;
-        self.heap.pop();
-        if self.heap.len() > 1 {
-            self.down(0);
-        }
-        Some(value)
+        self.heap.pop(&self.activity)
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.heap.clear();
     }
 
     #[inline]
     pub fn bump(&mut self, var: Var) {
         unsafe { Rc::get_mut_unchecked(&mut self.activity) }.bump(var);
-        if let Some(pos) = self.pos[var] {
-            self.up(pos)
+        if let Some(pos) = self.heap.pos[var] {
+            self.heap.up(pos, &self.activity)
         }
     }
 
@@ -169,7 +196,7 @@ impl Vsids {
 
     pub fn enable_fast(&mut self, mut vars: Vec<Var>) {
         assert!(!self.fast);
-        self.clear();
+        self.heap.clear();
         vars.sort_unstable_by(|a, b| self.activity[*b].partial_cmp(&self.activity[*a]).unwrap());
         self.fast = true;
         self.bucket.create(vars);
