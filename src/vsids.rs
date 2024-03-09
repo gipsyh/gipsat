@@ -1,29 +1,65 @@
 use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
 use giputils::gvec::Gvec;
 use logic_form::{Lit, Var, VarMap};
-use std::ops::MulAssign;
+use std::{
+    ops::{Index, MulAssign},
+    rc::Rc,
+};
 
-pub struct Vsids {
-    pub activity: VarMap<f64>,
-    heap: Gvec<Var>,
-    pos: VarMap<Option<u32>>,
-    pub act_inc: f64,
-
-    pub bucket: Bucket,
-    pub fast: bool,
+pub struct Activity {
+    activity: VarMap<f64>,
+    act_inc: f64,
 }
 
-impl Default for Vsids {
+impl Index<Var> for Activity {
+    type Output = f64;
+
+    #[inline]
+    fn index(&self, index: Var) -> &Self::Output {
+        &self.activity[index]
+    }
+}
+
+impl Activity {
+    #[inline]
+    pub fn reserve(&mut self, var: Var) {
+        self.activity.reserve(var)
+    }
+
+    #[inline]
+    pub fn bump(&mut self, var: Var) {
+        self.activity[var] += self.act_inc;
+        if self.activity[var] > 1e100 {
+            self.activity.iter_mut().for_each(|a| a.mul_assign(1e-100));
+            self.act_inc *= 1e-100;
+        }
+    }
+
+    const DECAY: f64 = 0.95;
+
+    #[inline]
+    pub fn decay(&mut self) {
+        self.act_inc *= 1.0 / Self::DECAY
+    }
+}
+
+impl Default for Activity {
     fn default() -> Self {
         Self {
             activity: Default::default(),
-            heap: Default::default(),
-            pos: Default::default(),
             act_inc: 1.0,
-            bucket: Default::default(),
-            fast: false,
         }
     }
+}
+
+#[derive(Default)]
+pub struct Vsids {
+    pub activity: Rc<Activity>,
+    heap: Gvec<Var>,
+    pos: VarMap<Option<u32>>,
+
+    pub bucket: Bucket,
+    pub fast: bool,
 }
 
 impl Vsids {
@@ -31,7 +67,7 @@ impl Vsids {
     pub fn reserve(&mut self, var: Var) {
         self.pos.reserve(var);
         self.bucket.reserve(var);
-        self.activity.reserve(var);
+        unsafe { Rc::get_mut_unchecked(&mut self.activity).reserve(var) };
     }
 
     #[inline]
@@ -120,21 +156,15 @@ impl Vsids {
 
     #[inline]
     pub fn bump(&mut self, var: Var) {
-        self.activity[var] += self.act_inc;
-        if self.activity[var] > 1e100 {
-            self.activity.iter_mut().for_each(|a| a.mul_assign(1e-100));
-            self.act_inc *= 1e-100;
-        }
+        unsafe { Rc::get_mut_unchecked(&mut self.activity) }.bump(var);
         if let Some(pos) = self.pos[var] {
             self.up(pos)
         }
     }
 
-    const DECAY: f64 = 0.95;
-
     #[inline]
     pub fn decay(&mut self) {
-        self.act_inc *= 1.0 / Self::DECAY
+        unsafe { Rc::get_mut_unchecked(&mut self.activity) }.decay();
     }
 
     pub fn enable_fast(&mut self, mut vars: Vec<Var>) {

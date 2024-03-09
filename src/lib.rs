@@ -1,3 +1,5 @@
+#![feature(get_mut_unchecked)]
+
 mod analyze;
 mod cdb;
 mod domain;
@@ -98,7 +100,6 @@ impl Solver {
             solver.new_var();
         }
         solver.vsids.activity = self.vsids.activity.clone();
-        solver.vsids.act_inc = self.vsids.act_inc;
         for cls in cnf.iter() {
             solver.add_clause_inner(cls, ClauseKind::Trans);
         }
