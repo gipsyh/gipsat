@@ -18,12 +18,14 @@ use domain::Domain;
 use giputils::gvec::Gvec;
 use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
+use rand::{rngs::StdRng, SeedableRng};
 use satif::{SatResult, SatifSat, SatifUnsat};
 use search::Value;
 use simplify::Simplify;
 use statistic::Statistic;
 use std::rc::Rc;
 use ts::TransitionSystem;
+use utils::Rng;
 use vsids::Vsids;
 
 #[derive(Default)]
@@ -54,6 +56,8 @@ pub struct Solver {
     statistic: Statistic,
 
     constrain_act: Option<Lit>,
+
+    rng: Rng,
 }
 
 impl Solver {

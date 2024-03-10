@@ -1,6 +1,7 @@
 use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
 use giputils::gvec::Gvec;
 use logic_form::{Lit, Var, VarMap};
+use rand::Rng;
 use std::ops::{Index, MulAssign};
 
 #[derive(Default)]
@@ -284,7 +285,11 @@ impl Solver {
     pub fn decide(&mut self) -> bool {
         while let Some(decide) = self.vsids.pop() {
             if self.value.v(decide.lit()).is_none() {
-                let decide = Lit::new(decide, self.phase_saving[decide] != Lbool::FALSE);
+                let decide = if self.phase_saving[decide].is_none() {
+                    Lit::new(decide, self.rng.gen_bool(0.5))
+                } else {
+                    Lit::new(decide, self.phase_saving[decide] != Lbool::FALSE)
+                };
                 self.pos_in_trail.push(self.trail.len());
                 self.assign(decide, CREF_NONE);
                 return true;

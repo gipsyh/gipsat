@@ -1,4 +1,9 @@
-use std::{fmt::Debug, ops::Not};
+use std::{
+    fmt::Debug,
+    ops::{Deref, DerefMut, Not},
+};
+
+use rand::{rngs::StdRng, SeedableRng};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Lbool(pub u8);
@@ -54,5 +59,31 @@ impl Not for Lbool {
     #[inline]
     fn not(self) -> Self::Output {
         Lbool(self.0 ^ 1)
+    }
+}
+
+pub struct Rng {
+    rng: StdRng,
+}
+
+impl Default for Rng {
+    fn default() -> Self {
+        Self {
+            rng: StdRng::seed_from_u64(0),
+        }
+    }
+}
+
+impl Deref for Rng {
+    type Target = StdRng;
+
+    fn deref(&self) -> &Self::Target {
+        &self.rng
+    }
+}
+
+impl DerefMut for Rng {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.rng
     }
 }
