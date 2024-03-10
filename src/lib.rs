@@ -159,7 +159,7 @@ impl Solver {
         self.lazy_lemma.push(Clause::from(lemma));
     }
 
-    fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>) {
+    fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>, bucket: bool) {
         self.clean_temporary();
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
@@ -175,6 +175,7 @@ impl Solver {
         }
 
         // dbg!(&self.name);
+        // self.vsids.activity.dbg();
         // dbg!(self.num_var());
         // dbg!(self.trail.len());
         // dbg!(self.cdb.num_leanrt());
@@ -201,7 +202,13 @@ impl Solver {
                     self.domain.local.insert(self.constrain_act.unwrap().var());
                 }
             }
-            self.vsids.clear();
+            if bucket {
+                self.vsids.enable_bucket = true;
+                self.vsids.bucket.clear();
+            } else {
+                self.vsids.enable_bucket = false;
+                self.vsids.heap.clear();
+            }
             for d in self.domain.domains() {
                 if self.value.v(d.lit()).is_none() {
                     self.vsids.push(*d);
@@ -210,11 +217,19 @@ impl Solver {
         }
     }
 
-    pub fn solve_with_domain(&mut self, assumption: &[Lit], domain: bool) -> SatResult<Sat, Unsat> {
+    pub fn solve_with_domain(
+        &mut self,
+        assumption: &[Lit],
+        domain: bool,
+        bucket: bool,
+    ) -> SatResult<Sat, Unsat> {
+        if self.temporary_domain {
+            assert!(bucket);
+        }
         if domain {
-            self.new_round(Some(assumption.iter().map(|l| l.var())));
+            self.new_round(Some(assumption.iter().map(|l| l.var())), bucket);
         } else {
-            self.new_round(None::<std::option::IntoIter<Var>>);
+            self.new_round(None::<std::option::IntoIter<Var>>, bucket);
         };
         self.statistic.num_solve += 1;
         self.clean_leanrt();
@@ -232,7 +247,11 @@ impl Solver {
         assump: &[Lit],
         mut constrain: Clause,
         domain: bool,
+        bucket: bool,
     ) -> SatResult<Sat, Unsat> {
+        if self.temporary_domain {
+            assert!(bucket);
+        }
         if self.constrain_act.is_none() {
             let constrain_act = self.new_var();
             self.constrain_act = Some(constrain_act.lit());
@@ -245,9 +264,12 @@ impl Solver {
         constrain.push(!act);
         self.lazy_temporary.push(constrain);
         if domain {
-            self.new_round(Some(assump.iter().chain(cc.iter()).map(|l| l.var())));
+            self.new_round(
+                Some(assump.iter().chain(cc.iter()).map(|l| l.var())),
+                bucket,
+            );
         } else {
-            self.new_round(None::<std::option::IntoIter<Var>>);
+            self.new_round(None::<std::option::IntoIter<Var>>, bucket);
         };
         self.statistic.num_solve += 1;
         self.clean_leanrt();
@@ -279,39 +301,15 @@ impl Solver {
         );
         assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
         self.domain.local.insert(self.constrain_act.unwrap().var());
-        self.vsids
-            .enable_fast(self.domain.domains().copied().collect());
-    }
-
-    pub fn set_sub_domain(&mut self, domain: impl Iterator<Item = Lit>) {
-        self.temporary_domain = true;
-        self.clean_temporary();
-        if !self.pos_in_trail.is_empty() {
-            while self.trail.len() > self.pos_in_trail[0] {
-                let bt = self.trail.pop().unwrap();
-                self.value.set_none(bt.var());
-                self.phase_saving[bt] = Lbool::from(bt.polarity());
-            }
-            self.propagated = self.pos_in_trail[0];
-            self.pos_in_trail.truncate(0);
-        }
-        self.domain.enable_local(
-            domain.map(|l| l.var()),
-            self.ts.as_ref().unwrap(),
-            &self.value,
-        );
-        assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
-        self.domain.local.insert(self.constrain_act.unwrap().var());
-        assert!(self.vsids.fast);
+        self.vsids.enable_bucket = true;
         self.vsids.bucket.clear();
-        for v in self.domain.domains() {
-            self.vsids.push(*v);
+        for d in self.domain.domains() {
+            self.vsids.push(*d);
         }
     }
 
     pub fn unset_domain(&mut self) {
         self.temporary_domain = false;
-        self.vsids.disable_fast();
     }
 }
 
