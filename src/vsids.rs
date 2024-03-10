@@ -1,13 +1,7 @@
 use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
 use giputils::gvec::Gvec;
 use logic_form::{Lit, Var, VarMap};
-use std::{
-    collections::BTreeSet,
-    fmt::Debug,
-    mem::take,
-    ops::{Index, MulAssign},
-    rc::Rc,
-};
+use std::ops::{Index, MulAssign};
 
 #[derive(Default)]
 pub struct BinaryHeap {
@@ -22,6 +16,11 @@ impl BinaryHeap {
     }
 
     #[inline]
+    fn len(&self) -> u32 {
+        self.heap.len()
+    }
+
+    #[inline]
     pub fn clear(&mut self) {
         for v in self.heap.iter() {
             self.pos[*v] = None;
@@ -30,8 +29,11 @@ impl BinaryHeap {
     }
 
     #[inline]
-    fn up(&mut self, mut idx: u32, activity: &Activity) {
-        let v = self.heap[idx];
+    fn up(&mut self, v: Var, activity: &Activity) {
+        let mut idx = match self.pos[v] {
+            Some(idx) => idx,
+            None => return,
+        };
         while idx != 0 {
             let pidx = (idx - 1) >> 1;
             if activity[self.heap[pidx]] >= activity[v] {
@@ -80,7 +82,7 @@ impl BinaryHeap {
         let idx = self.heap.len();
         self.heap.push(var);
         self.pos[var] = Some(idx);
-        self.up(idx, activity);
+        self.up(var, activity);
     }
 
     #[inline]
@@ -100,54 +102,10 @@ impl BinaryHeap {
     }
 }
 
-struct BucketElement {
-    act: Rc<Activity>,
-    var: Var,
-}
-
-impl PartialEq for BucketElement {
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.act[self.var] == self.act[other.var] && self.var == other.var
-    }
-}
-
-impl Eq for BucketElement {}
-
-impl PartialOrd for BucketElement {
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.act[self.var] == self.act[other.var] {
-            self.var.partial_cmp(&other.var)
-        } else {
-            self.act[self.var].partial_cmp(&self.act[other.var])
-        }
-    }
-}
-
-impl Ord for BucketElement {
-    #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl Debug for BucketElement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BucketElement")
-            .field("act", &self.act[self.var])
-            .field("var", &self.var)
-            .finish()
-    }
-}
-
-const NUM_BUCKET: u32 = 20;
-
 pub struct Activity {
     activity: VarMap<f64>,
     act_inc: f64,
-    bucket_heap: Gvec<BTreeSet<BucketElement>>,
-    bucket: VarMap<Option<u32>>,
+    bucket_heap: BinaryHeap,
 }
 
 impl Index<Var> for Activity {
@@ -161,54 +119,36 @@ impl Index<Var> for Activity {
 
 impl Activity {
     #[inline]
-    pub fn reserve(self: &mut Rc<Self>, var: Var) {
-        let s = unsafe { Rc::get_mut_unchecked(self) };
-        s.activity.reserve(var);
-        s.bucket.reserve(var);
+    pub fn reserve(&mut self, var: Var) {
+        self.activity.reserve(var);
+        self.bucket_heap.reserve(var);
     }
 
     #[inline]
-    fn check(self: &mut Rc<Self>, var: Var) {
-        if self.bucket[var].is_none() {
-            let clone = self.clone();
-            let s = unsafe { Rc::get_mut_unchecked(self) };
-            s.bucket_heap[NUM_BUCKET - 1].insert(BucketElement { act: clone, var });
-            s.bucket[var] = Some(NUM_BUCKET - 1);
-            s.update();
+    fn check(&mut self, var: Var) {
+        let activity = self as *const Self;
+        if self.bucket_heap.pos[var].is_none() {
+            self.bucket_heap.push(var, unsafe { &*activity });
         }
-        assert!(self.bucket[var].is_some());
+        assert!(self.bucket_heap.pos[var].is_some())
     }
 
     fn bucket(&self, var: Var) -> u32 {
-        match self.bucket[var] {
-            Some(b) => b,
-            None => NUM_BUCKET,
+        match self.bucket_heap.pos[var] {
+            Some(b) => u32::BITS - b.leading_zeros(),
+            None => u32::BITS - self.bucket_heap.len().leading_zeros() + 1,
         }
     }
 
     #[inline]
-    pub fn bump(self: &mut Rc<Self>, var: Var) {
+    pub fn bump(&mut self, var: Var) {
+        self.activity[var] += self.act_inc;
         self.check(var);
-        let clone = self.clone();
-        let s = unsafe { Rc::get_mut_unchecked(self) };
-        let bucket = s.bucket[var].unwrap();
-        let element = BucketElement { act: clone, var };
-        if !s.bucket_heap[bucket].remove(&element) {
-            dbg!(s.bucket_heap[bucket].iter().any(|b| b.var == var));
-            todo!();
-        }
-        s.activity[var] += s.act_inc;
-        s.bucket_heap[bucket].insert(element);
-        s.up(var);
-        if s.activity[var] > 1e100 {
-            s.activity.iter_mut().for_each(|a| a.mul_assign(1e-100));
-            s.act_inc *= 1e-100;
-            for i in 0..NUM_BUCKET {
-                let heap = take(&mut s.bucket_heap[i]);
-                for e in heap {
-                    s.bucket_heap[i].insert(e);
-                }
-            }
+        let activity = self as *const Self;
+        self.bucket_heap.up(var, unsafe { &*activity });
+        if self.activity[var] > 1e100 {
+            self.activity.iter_mut().for_each(|a| a.mul_assign(1e-100));
+            self.act_inc *= 1e-100;
         }
     }
 
@@ -218,69 +158,20 @@ impl Activity {
     pub fn decay(&mut self) {
         self.act_inc *= 1.0 / Self::DECAY
     }
-
-    #[inline]
-    fn up(&mut self, var: Var) {
-        let mut now = self.bucket[var].unwrap();
-        while now > 0 {
-            if self.bucket_heap[now].last().unwrap() > self.bucket_heap[now - 1].first().unwrap() {
-                let max = self.bucket_heap[now].pop_last().unwrap();
-                let min = self.bucket_heap[now - 1].pop_first().unwrap();
-                self.bucket[max.var] = Some(now - 1);
-                self.bucket[min.var] = Some(now);
-                self.bucket_heap[now].insert(min);
-                self.bucket_heap[now - 1].insert(max);
-            } else {
-                break;
-            }
-            now -= 1;
-        }
-    }
-
-    #[inline]
-    fn update(&mut self) {
-        let mut now = NUM_BUCKET - 1;
-        while now > 0 {
-            if self.bucket_heap[now].len() > self.bucket_heap[now - 1].len() {
-                assert!(self.bucket_heap[now].len() == self.bucket_heap[now - 1].len() + 1);
-                let max = self.bucket_heap[now].pop_last().unwrap();
-                self.bucket[max.var] = Some(now - 1);
-                self.bucket_heap[now - 1].insert(max);
-            } else {
-                break;
-            }
-            now -= 1;
-        }
-    }
-
-    pub fn dbg(&self) {
-        dbg!("begin");
-        for i in 0..NUM_BUCKET {
-            dbg!(self.bucket_heap[i].last());
-            dbg!(self.bucket_heap[i].first());
-            dbg!(self.bucket_heap[i].len());
-        }
-        dbg!("end");
-    }
 }
 
 impl Default for Activity {
     fn default() -> Self {
-        let mut bucket_heap = Gvec::default();
-        for _ in 0..NUM_BUCKET {
-            bucket_heap.push(BTreeSet::new());
-        }
         Self {
-            activity: Default::default(),
             act_inc: 1.0,
-            bucket_heap,
-            bucket: Default::default(),
+            activity: Default::default(),
+            bucket_heap: Default::default(),
         }
     }
 }
 
 pub struct Vsids {
-    pub activity: Rc<Activity>,
+    pub activity: Activity,
 
     pub heap: BinaryHeap,
     pub bucket: Bucket,
@@ -298,7 +189,7 @@ impl Vsids {
     #[inline]
     pub fn push(&mut self, var: Var) {
         if self.enable_bucket {
-            return self.bucket.push(var, &mut self.activity);
+            return self.bucket.push(var, &self.activity);
         }
         self.heap.push(var, &self.activity)
     }
@@ -315,15 +206,13 @@ impl Vsids {
     pub fn bump(&mut self, var: Var) {
         self.activity.bump(var);
         if !self.enable_bucket {
-            if let Some(pos) = self.heap.pos[var] {
-                self.heap.up(pos, &self.activity)
-            }
+            self.heap.up(var, &self.activity);
         }
     }
 
     #[inline]
     pub fn decay(&mut self) {
-        unsafe { Rc::get_mut_unchecked(&mut self.activity) }.decay();
+        self.activity.decay();
     }
 
     // pub fn enable_fast(&mut self) {
@@ -365,7 +254,7 @@ impl Bucket {
     }
 
     #[inline]
-    pub fn push(&mut self, var: Var, activity: &mut Rc<Activity>) {
+    pub fn push(&mut self, var: Var, activity: &Activity) {
         if self.in_bucket[var] {
             return;
         }

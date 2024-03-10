@@ -91,23 +91,23 @@ impl Solver {
         self.reason.len()
     }
 
-    pub fn new_frame(&self, name: &str, cnf: &[Clause]) -> Self {
-        let mut solver = Self {
-            name: name.to_string(),
-            ..Default::default()
-        };
-        while solver.num_var() < self.num_var() {
-            solver.new_var();
-        }
-        solver.vsids.activity = self.vsids.activity.clone();
-        for cls in cnf.iter() {
-            solver.add_clause_inner(cls, ClauseKind::Trans);
-        }
-        solver.ts = Some(TransitionSystem::new(
-            self.ts.as_ref().unwrap().dependence.clone(),
-        ));
-        solver
-    }
+    // pub fn new_frame(&self, name: &str, cnf: &[Clause]) -> Self {
+    //     let mut solver = Self {
+    //         name: name.to_string(),
+    //         ..Default::default()
+    //     };
+    //     while solver.num_var() < self.num_var() {
+    //         solver.new_var();
+    //     }
+    //     solver.vsids.activity = self.vsids.activity.clone();
+    //     for cls in cnf.iter() {
+    //         solver.add_clause_inner(cls, ClauseKind::Trans);
+    //     }
+    //     solver.ts = Some(TransitionSystem::new(
+    //         self.ts.as_ref().unwrap().dependence.clone(),
+    //     ));
+    //     solver
+    // }
 
     fn simplify_clause(&mut self, cls: &[Lit]) -> Option<logic_form::Clause> {
         assert!(self.highest_level() == 0);
