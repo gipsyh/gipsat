@@ -214,19 +214,6 @@ impl Vsids {
     pub fn decay(&mut self) {
         self.activity.decay();
     }
-
-    // pub fn enable_fast(&mut self) {
-    //     assert!(!self.fast);
-    //     self.fast = true;
-    //     self.heap.clear();
-    //     self.bucket.clear();
-    // }
-
-    // pub fn disable_fast(&mut self) {
-    //     self.fast = false;
-    //     self.bucket.clear();
-    //     self.heap.clear();
-    // }
 }
 
 impl Default for Vsids {
