@@ -94,6 +94,7 @@ impl Solver {
                 self.vsids.decay();
                 self.cdb.decay();
             } else {
+                self.clean_leanrt();
                 while self.highest_level() < assumption.len() {
                     let a = assumption[self.highest_level()];
                     match self.value.v(a) {

@@ -284,7 +284,7 @@ impl ClauseDB {
         }
     }
 
-    const DECAY: f32 = 0.999;
+    const DECAY: f32 = 0.99;
 
     #[inline]
     pub fn decay(&mut self) {
@@ -352,40 +352,36 @@ impl Solver {
     }
 
     pub fn clean_leanrt(&mut self) {
-        if self.statistic.num_solve % 1000 != 1 {
+        if self.statistic.num_solve % 1000 == 1 && self.highest_level() == 0 {
+            for l in take(&mut self.cdb.learnt) {
+                let cls = self.cdb.get(l);
+                if !self.locked(cls) && cls.len() > 2 {
+                    self.remove_clause(l);
+                } else {
+                    self.cdb.learnt.push(l);
+                }
+            }
             return;
         }
-        // assert!(self.highest_level() == 0);
-        // if self.cdb.learnt.len() * 4 < self.cdb.trans.len() {
-        //     return;
-        // }
-        // self.cdb.learnt.sort_unstable_by(|a, b| {
-        //     self.cdb
-        //         .allocator
-        //         .get(*b)
-        //         .get_act()
-        //         .partial_cmp(&self.cdb.allocator.get(*a).get_act())
-        //         .unwrap()
-        // });
-        // let learnt = take(&mut self.cdb.learnt);
-        // for i in 0..learnt.len() {
-        //     let l = learnt[i];
-        //     if i > learnt.len() / 2 {
-        //         let cls = &self.cdb[l];
-        //         if !self.locked(cls) && cls.len() > 2 {
-        //             self.remove_clause(l);
-        //             continue;
-        //         }
-        //     }
-        //     self.cdb.learnt.push(l);
-        // }
-
-        assert!(self.highest_level() == 0);
-        for l in take(&mut self.cdb.learnt) {
-            let cls = self.cdb.get(l);
-            if !self.locked(cls) && cls.len() > 2 {
-                self.remove_clause(l);
-            } else {
+        if self.cdb.learnt.len() >= self.cdb.trans.len() {
+            self.cdb.learnt.sort_unstable_by(|a, b| {
+                self.cdb
+                    .allocator
+                    .get(*b)
+                    .get_act()
+                    .partial_cmp(&self.cdb.allocator.get(*a).get_act())
+                    .unwrap()
+            });
+            let learnt = take(&mut self.cdb.learnt);
+            for i in 0..learnt.len() {
+                let l = learnt[i];
+                let cls = self.cdb.get(l);
+                if i > learnt.len() / 3 {
+                    if !self.locked(cls) && cls.len() > 2 {
+                        self.remove_clause(l);
+                        continue;
+                    }
+                }
                 self.cdb.learnt.push(l);
             }
         }
