@@ -18,7 +18,6 @@ use domain::Domain;
 use giputils::gvec::Gvec;
 use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
-use rand::{rngs::StdRng, SeedableRng};
 use satif::{SatResult, SatifSat, SatifUnsat};
 use search::Value;
 use simplify::Simplify;
@@ -239,11 +238,7 @@ impl Solver {
         self.clean_leanrt();
         self.simplify();
         self.garbage_collect();
-        if self.search(assumption) {
-            SatResult::Sat(Sat { solver: self })
-        } else {
-            SatResult::Unsat(Unsat { solver: self })
-        }
+        self.search_with_restart(assumption)
     }
 
     pub fn solve_with_constrain(
@@ -279,11 +274,7 @@ impl Solver {
         self.clean_leanrt();
         self.simplify();
         self.garbage_collect();
-        if self.search(&assumption) {
-            SatResult::Sat(Sat { solver: self })
-        } else {
-            SatResult::Unsat(Unsat { solver: self })
-        }
+        self.search_with_restart(&assumption)
     }
 
     pub fn set_domain(&mut self, domain: impl Iterator<Item = Lit>) {

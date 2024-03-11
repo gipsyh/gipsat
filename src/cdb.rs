@@ -376,11 +376,9 @@ impl Solver {
             for i in 0..learnt.len() {
                 let l = learnt[i];
                 let cls = self.cdb.get(l);
-                if i > learnt.len() / 3 {
-                    if !self.locked(cls) && cls.len() > 2 {
-                        self.remove_clause(l);
-                        continue;
-                    }
+                if i > learnt.len() / 3 && !self.locked(cls) && cls.len() > 2 {
+                    self.remove_clause(l);
+                    continue;
                 }
                 self.cdb.learnt.push(l);
             }

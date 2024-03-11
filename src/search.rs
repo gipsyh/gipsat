@@ -1,9 +1,10 @@
 use crate::{
     cdb::{CRef, ClauseKind, CREF_NONE},
     utils::Lbool,
-    Solver,
+    Sat, Solver, Unsat,
 };
 use logic_form::{Lit, Var, VarMap};
+use satif::SatResult;
 
 #[derive(Default)]
 pub struct Value {
@@ -52,7 +53,7 @@ impl Solver {
     }
 
     pub fn backtrack(&mut self, level: usize) {
-        if self.highest_level() == level {
+        if self.highest_level() <= level {
             return;
         }
         while self.trail.len() > self.pos_in_trail[level] {
@@ -65,12 +66,28 @@ impl Solver {
         self.pos_in_trail.truncate(level);
     }
 
-    pub fn search(&mut self, assumption: &[Lit]) -> bool {
+    pub fn search_with_restart(&mut self, assumption: &[Lit]) -> SatResult<Sat, Unsat> {
+        let mut restarts = 0;
+        let rest_base = luby(2.0, restarts);
+        loop {
+            match self.search(assumption, Some(rest_base * 100.0)) {
+                Some(true) => return SatResult::Sat(Sat { solver: self }),
+                Some(false) => return SatResult::Unsat(Unsat { solver: self }),
+                None => {
+                    restarts += 1;
+                }
+            }
+        }
+    }
+
+    pub fn search(&mut self, assumption: &[Lit], noc: Option<f64>) -> Option<bool> {
+        let mut num_conflict = 0.0_f64;
         'ml: loop {
             let conflict = self.propagate();
             if conflict != CREF_NONE {
+                num_conflict += 1.0;
                 if self.highest_level() == 0 {
-                    return false;
+                    return Some(false);
                 }
                 let (learnt, btl) = self.analyze(conflict);
                 self.backtrack(btl);
@@ -94,6 +111,12 @@ impl Solver {
                 self.vsids.decay();
                 self.cdb.decay();
             } else {
+                if let Some(noc) = noc {
+                    if num_conflict >= noc {
+                        self.backtrack(assumption.len());
+                        return None;
+                    }
+                }
                 self.clean_leanrt();
                 while self.highest_level() < assumption.len() {
                     let a = assumption[self.highest_level()];
@@ -101,7 +124,7 @@ impl Solver {
                         Lbool::TRUE => self.new_level(),
                         Lbool::FALSE => {
                             self.analyze_unsat_core(a);
-                            return false;
+                            return Some(false);
                         }
                         _ => {
                             self.new_level();
@@ -111,9 +134,24 @@ impl Solver {
                     }
                 }
                 if !self.decide() {
-                    return true;
+                    return Some(true);
                 }
             }
         }
     }
+}
+
+fn luby(y: f64, mut x: u32) -> f64 {
+    let mut size = 1;
+    let mut seq = 0;
+    while size < x + 1 {
+        seq += 1;
+        size = 2 * size + 1
+    }
+    while size - 1 != x {
+        size = (size - 1) >> 1;
+        seq -= 1;
+        x %= size;
+    }
+    y.powi(seq)
 }
