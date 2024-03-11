@@ -452,7 +452,6 @@ impl Solver {
             if !self.locked(cls) {
                 self.remove_clause(lemma[i]);
             } else {
-                dbg!("locked success");
                 self.cdb.lemma.push(lemma[i]);
             }
         }

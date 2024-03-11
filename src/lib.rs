@@ -1,5 +1,3 @@
-#![feature(get_mut_unchecked)]
-
 mod analyze;
 mod cdb;
 mod domain;
