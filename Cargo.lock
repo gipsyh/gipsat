@@ -3,6 +3,14 @@
 version = 3
 
 [[package]]
+name = "aig"
+version = "0.1.0"
+dependencies = [
+ "gipsyh-aiger",
+ "logic-form",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -62,6 +70,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc"
+version = "1.0.90"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cd6604a82acf3039f1144f54b8eb34e91ffba622051189e71b781822d5ee1f5"
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -108,6 +122,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 
 [[package]]
+name = "cmake"
+version = "0.1.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31c789563b815f77f4250caee12365734369f942439b7defd71e18a48197130"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -134,7 +157,12 @@ dependencies = [
  "logic-form",
  "rand",
  "satif",
+ "transys",
 ]
+
+[[package]]
+name = "gipsyh-aiger"
+version = "0.4.0"
 
 [[package]]
 name = "giputils"
@@ -157,6 +185,15 @@ name = "logic-form"
 version = "0.1.1"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "minisat"
+version = "0.1.0"
+dependencies = [
+ "cmake",
+ "logic-form",
+ "satif",
 ]
 
 [[package]]
@@ -255,6 +292,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "transys"
+version = "0.1.0"
+dependencies = [
+ "aig",
+ "logic-form",
+ "minisat",
+ "satif",
 ]
 
 [[package]]

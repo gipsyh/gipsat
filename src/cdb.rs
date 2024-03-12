@@ -1,9 +1,8 @@
 use crate::Solver;
 use bitfield_struct::bitfield;
 use giputils::gvec::Gvec;
-use logic_form::{Cube, Lemma, Lit};
+use logic_form::Lit;
 use std::{
-    collections::HashSet,
     mem::take,
     ops::{AddAssign, Index, MulAssign},
     ptr,
@@ -234,7 +233,6 @@ pub enum ClauseKind {
 pub struct ClauseDB {
     allocator: Allocator,
     trans: Gvec<CRef>,
-    lemma: Gvec<CRef>,
     learnt: Gvec<CRef>,
     temporary: Gvec<CRef>,
     act_inc: f32,
@@ -255,7 +253,7 @@ impl ClauseDB {
         );
         match kind {
             ClauseKind::Trans => self.trans.push(cid),
-            ClauseKind::Lemma => self.lemma.push(cid),
+            ClauseKind::Lemma => (),
             ClauseKind::Learnt => self.learnt.push(cid),
             ClauseKind::Temporary => self.temporary.push(cid),
         }
@@ -293,12 +291,6 @@ impl ClauseDB {
 
     #[inline]
     #[allow(unused)]
-    pub fn num_lemma(&self) -> u32 {
-        self.lemma.len()
-    }
-
-    #[inline]
-    #[allow(unused)]
     pub fn num_leanrt(&self) -> u32 {
         self.learnt.len()
     }
@@ -308,7 +300,6 @@ impl Default for ClauseDB {
     fn default() -> Self {
         Self {
             allocator: Default::default(),
-            lemma: Default::default(),
             trans: Default::default(),
             learnt: Default::default(),
             temporary: Default::default(),
@@ -336,7 +327,7 @@ impl Solver {
         id
     }
 
-    fn remove_clause(&mut self, cref: CRef) {
+    pub fn remove_clause(&mut self, cref: CRef) {
         self.watchers.detach(cref, self.cdb.get(cref));
         self.cdb.free(cref);
     }
@@ -347,7 +338,7 @@ impl Solver {
         }
     }
 
-    fn locked(&self, cls: Clause) -> bool {
+    pub fn locked(&self, cls: Clause) -> bool {
         self.value.v(cls[0]).is_true() && self.reason[cls[0]] != CREF_NONE
     }
 
@@ -414,47 +405,22 @@ impl Solver {
         self.cdb.learnt = self.simplify_clauses(learnt);
         let trans = take(&mut self.cdb.trans);
         self.cdb.trans = self.simplify_clauses(trans);
-        let lemma = take(&mut self.cdb.lemma);
-        self.cdb.lemma = self.simplify_clauses(lemma);
-        self.garbage_collect();
-    }
-
-    pub fn lemma_subsumption_simplify(&mut self) {
-        assert!(self.highest_level() == 0);
-        self.cdb
-            .lemma
-            .sort_unstable_by_key(|l| self.cdb.allocator.get(*l).len());
-        let lemma: Vec<Lemma> = self
-            .cdb
-            .lemma
-            .iter()
-            .map(|l| {
-                let c = self.cdb.get(*l);
-                Lemma::new(Cube::from_iter(c.slice().iter().copied()))
-            })
-            .collect();
-        let mut remove = HashSet::new();
-        for i in 0..lemma.len() {
-            for j in 0..i {
-                if lemma[j].ordered_subsume(&lemma[i]) {
-                    remove.insert(i as u32);
-                    break;
+        for i in self.id..self.frame.len() {
+            for l in self.frame[i].iter_mut() {
+                if l.cref[self.id] != CREF_NONE {
+                    let mut j = 2;
+                    let mut cls = self.cdb.get(l.cref[self.id]);
+                    while j < cls.len() {
+                        if self.value.v(cls[j]).is_false() {
+                            cls.swap_remove(j);
+                            continue;
+                        }
+                        j += 1;
+                    }
                 }
             }
         }
-        let lemma = take(&mut self.cdb.lemma);
-        for i in 0..lemma.len() {
-            if !remove.contains(&i) {
-                self.cdb.lemma.push(lemma[i]);
-                continue;
-            }
-            let cls = self.cdb.get(lemma[i]);
-            if !self.locked(cls) {
-                self.remove_clause(lemma[i]);
-            } else {
-                self.cdb.lemma.push(lemma[i]);
-            }
-        }
+        self.garbage_collect();
     }
 
     pub fn garbage_collect(&mut self) {
@@ -468,11 +434,18 @@ impl Solver {
                 }
             }
 
+            for i in self.id..self.frame.len() {
+                for l in self.frame[i].iter_mut() {
+                    if l.cref[self.id] != CREF_NONE {
+                        l.cref[self.id] = self.cdb.allocator.reloc(l.cref[self.id], &mut to)
+                    }
+                }
+            }
+
             let cls = self
                 .cdb
                 .trans
                 .iter_mut()
-                .chain(self.cdb.lemma.iter_mut())
                 .chain(self.cdb.learnt.iter_mut())
                 .chain(self.cdb.temporary.iter_mut());
 

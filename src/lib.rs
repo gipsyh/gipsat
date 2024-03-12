@@ -1,3 +1,5 @@
+#![feature(get_mut_unchecked)]
+
 mod analyze;
 mod cdb;
 mod domain;
@@ -5,7 +7,6 @@ mod propagate;
 mod search;
 mod simplify;
 mod statistic;
-mod ts;
 mod utils;
 mod vsids;
 
@@ -20,14 +21,17 @@ use satif::{SatResult, SatifSat, SatifUnsat};
 use search::Value;
 use simplify::Simplify;
 use statistic::Statistic;
-use std::rc::Rc;
-use ts::TransitionSystem;
+use std::{
+    ops::{Deref, DerefMut},
+    rc::Rc,
+};
+use transys::Model;
 use utils::Rng;
 use vsids::Vsids;
 
 #[derive(Default)]
 pub struct Solver {
-    name: String,
+    id: usize,
     cdb: ClauseDB,
     watchers: Watchers,
     value: Value,
@@ -44,11 +48,10 @@ pub struct Solver {
 
     domain: Domain,
     temporary_domain: bool,
-    lazy_clauses: Vec<Clause>,
-    lazy_lemma: Vec<Clause>,
     lazy_temporary: Vec<Clause>,
 
-    ts: Option<TransitionSystem>,
+    ts: Rc<Model>,
+    frame: Frame,
 
     statistic: Statistic,
 
@@ -58,18 +61,19 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new(name: &str, num_var: usize, cnf: &[Clause], dep: &VarMap<Vec<Var>>) -> Self {
+    pub fn new(id: usize, ts: &Rc<Model>, frame: &Frame) -> Self {
         let mut solver = Self {
-            name: name.to_string(),
+            id,
+            ts: ts.clone(),
+            frame: frame.clone(),
             ..Default::default()
         };
-        while solver.num_var() < num_var {
+        while solver.num_var() < solver.ts.num_var {
             solver.new_var();
         }
-        for cls in cnf.iter() {
+        for cls in ts.trans.iter() {
             solver.add_clause_inner(cls, ClauseKind::Trans);
         }
-        solver.ts = Some(TransitionSystem::new(Rc::new(dep.clone())));
         solver
     }
 
@@ -92,24 +96,6 @@ impl Solver {
         self.reason.len()
     }
 
-    // pub fn new_frame(&self, name: &str, cnf: &[Clause]) -> Self {
-    //     let mut solver = Self {
-    //         name: name.to_string(),
-    //         ..Default::default()
-    //     };
-    //     while solver.num_var() < self.num_var() {
-    //         solver.new_var();
-    //     }
-    //     solver.vsids.activity = self.vsids.activity.clone();
-    //     for cls in cnf.iter() {
-    //         solver.add_clause_inner(cls, ClauseKind::Trans);
-    //     }
-    //     solver.ts = Some(TransitionSystem::new(
-    //         self.ts.as_ref().unwrap().dependence.clone(),
-    //     ));
-    //     solver
-    // }
-
     fn simplify_clause(&mut self, cls: &[Lit]) -> Option<logic_form::Clause> {
         assert!(self.highest_level() == 0);
         let mut clause = logic_form::Clause::new();
@@ -127,10 +113,10 @@ impl Solver {
         Some(clause)
     }
 
-    pub fn add_clause_inner(&mut self, clause: &[Lit], mut kind: ClauseKind) {
+    pub fn add_clause_inner(&mut self, clause: &[Lit], mut kind: ClauseKind) -> CRef {
         let clause = match self.simplify_clause(clause) {
             Some(clause) => clause,
-            None => return,
+            None => return CREF_NONE,
         };
         for l in clause.iter() {
             if let Some(act) = self.constrain_act {
@@ -146,22 +132,32 @@ impl Solver {
                 _ => {
                     self.assign(clause[0], CREF_NONE);
                     assert!(self.propagate() == CREF_NONE);
+                    CREF_NONE
                 }
             }
         } else {
-            self.attach_clause(&clause, kind);
+            self.attach_clause(&clause, kind)
         }
     }
 
-    pub fn add_lemma(&mut self, lemma: &[Lit]) {
+    fn add_lemma(&mut self, lemma: &[Lit]) -> CRef {
+        self.backtrack(0);
+        self.clean_temporary();
         for l in lemma.iter() {
             self.domain.lemma.insert(l.var());
         }
-        self.lazy_lemma.push(Clause::from(lemma));
+        self.add_clause_inner(lemma, ClauseKind::Lemma)
+    }
+
+    fn remove_lemma(&mut self, cref: CRef) {
+        self.backtrack(0);
+        self.clean_temporary();
+        if !self.locked(self.cdb.get(cref)) {
+            self.remove_clause(cref)
+        }
     }
 
     fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>, bucket: bool) {
-        self.clean_temporary();
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
@@ -174,6 +170,7 @@ impl Solver {
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
         }
+        self.clean_temporary();
 
         // dbg!(&self.name);
         // self.vsids.activity.dbg();
@@ -182,22 +179,13 @@ impl Solver {
         // dbg!(self.cdb.num_leanrt());
         // dbg!(self.cdb.num_lemma());
 
-        while let Some(lc) = self.lazy_clauses.pop() {
-            self.add_clause_inner(&lc, ClauseKind::Trans);
-        }
-
-        while let Some(lc) = self.lazy_lemma.pop() {
-            self.add_clause_inner(&lc, ClauseKind::Lemma);
-        }
-
         while let Some(lc) = self.lazy_temporary.pop() {
             self.add_clause_inner(&lc, ClauseKind::Temporary);
         }
 
         if !self.temporary_domain {
             if let Some(domain) = domain {
-                self.domain
-                    .enable_local(domain, self.ts.as_ref().unwrap(), &self.value);
+                self.domain.enable_local(domain, &self.ts, &self.value);
                 if self.constrain_act.is_some() {
                     assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
                     self.domain.local.insert(self.constrain_act.unwrap().var());
@@ -218,20 +206,11 @@ impl Solver {
         }
     }
 
-    pub fn solve_with_domain(
-        &mut self,
-        assumption: &[Lit],
-        domain: bool,
-        bucket: bool,
-    ) -> SatResult<Sat, Unsat> {
+    pub fn solve_with_domain(&mut self, assumption: &[Lit], bucket: bool) -> SatResult<Sat, Unsat> {
         if self.temporary_domain {
             assert!(bucket);
         }
-        if domain {
-            self.new_round(Some(assumption.iter().map(|l| l.var())), bucket);
-        } else {
-            self.new_round(None::<std::option::IntoIter<Var>>, bucket);
-        };
+        self.new_round(Some(assumption.iter().map(|l| l.var())), bucket);
         self.statistic.num_solve += 1;
         self.clean_leanrt();
         self.simplify();
@@ -243,7 +222,6 @@ impl Solver {
         &mut self,
         assump: &[Lit],
         mut constrain: Clause,
-        domain: bool,
         bucket: bool,
     ) -> SatResult<Sat, Unsat> {
         if self.temporary_domain {
@@ -260,14 +238,10 @@ impl Solver {
         let cc = constrain.clone();
         constrain.push(!act);
         self.lazy_temporary.push(constrain);
-        if domain {
-            self.new_round(
-                Some(assump.iter().chain(cc.iter()).map(|l| l.var())),
-                bucket,
-            );
-        } else {
-            self.new_round(None::<std::option::IntoIter<Var>>, bucket);
-        };
+        self.new_round(
+            Some(assump.iter().chain(cc.iter()).map(|l| l.var())),
+            bucket,
+        );
         self.statistic.num_solve += 1;
         self.clean_leanrt();
         self.simplify();
@@ -277,7 +251,6 @@ impl Solver {
 
     pub fn set_domain(&mut self, domain: impl Iterator<Item = Lit>) {
         self.temporary_domain = true;
-        self.clean_temporary();
         if !self.pos_in_trail.is_empty() {
             while self.trail.len() > self.pos_in_trail[0] {
                 let bt = self.trail.pop().unwrap();
@@ -287,11 +260,9 @@ impl Solver {
             self.propagated = self.pos_in_trail[0];
             self.pos_in_trail.truncate(0);
         }
-        self.domain.enable_local(
-            domain.map(|l| l.var()),
-            self.ts.as_ref().unwrap(),
-            &self.value,
-        );
+        self.clean_temporary();
+        self.domain
+            .enable_local(domain.map(|l| l.var()), &self.ts, &self.value);
         assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
         self.domain.local.insert(self.constrain_act.unwrap().var());
         self.vsids.enable_bucket = true;
@@ -331,5 +302,271 @@ impl SatifUnsat for Unsat {
     fn has(&self, lit: Lit) -> bool {
         let solver = unsafe { &*self.solver };
         solver.unsat_core.has(lit)
+    }
+}
+
+pub enum BlockResult {
+    Yes(BlockResultYes),
+    No(BlockResultNo),
+}
+
+pub struct BlockResultYes {
+    pub unsat: Unsat,
+    pub cube: Cube,
+    pub assumption: Cube,
+}
+
+pub struct BlockResultNo {
+    pub sat: Sat,
+    pub assumption: Cube,
+}
+
+impl BlockResultNo {
+    #[inline]
+    pub fn lit_value(&self, lit: Lit) -> Option<bool> {
+        self.sat.lit_value(lit)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Lemma {
+    pub lemma: logic_form::Lemma,
+    cref: Vec<CRef>,
+}
+
+impl Deref for Lemma {
+    type Target = logic_form::Lemma;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.lemma
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct Frame {
+    frames: Rc<Vec<Vec<Lemma>>>,
+}
+
+impl Deref for Frame {
+    type Target = Vec<Vec<Lemma>>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.frames
+    }
+}
+
+impl DerefMut for Frame {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.get_mut()
+    }
+}
+
+impl Frame {
+    #[inline]
+    pub fn get_mut(&mut self) -> &mut Vec<Vec<Lemma>> {
+        unsafe { Rc::get_mut_unchecked(&mut self.frames) }
+    }
+}
+
+pub struct GipSAT {
+    model: Rc<Model>,
+    pub frame: Frame,
+    pub solvers: Vec<Solver>,
+    tmp_lit_set: LitSet,
+    early: usize,
+}
+
+impl GipSAT {
+    pub fn new(model: Model) -> Self {
+        let mut tmp_lit_set = LitSet::new();
+        tmp_lit_set.reserve(model.max_latch);
+        Self {
+            model: Rc::new(model),
+            frame: Default::default(),
+            solvers: Default::default(),
+            tmp_lit_set,
+            early: 1,
+        }
+    }
+
+    #[inline]
+    pub fn depth(&self) -> usize {
+        self.frame.len() - 1
+    }
+
+    pub fn new_frame(&mut self) {
+        self.solvers
+            .push(Solver::new(self.frame.len(), &self.model, &self.frame));
+        self.frame.push(Vec::new());
+    }
+
+    #[inline]
+    pub fn trivial_contained(&mut self, frame: usize, lemma: &logic_form::Lemma) -> bool {
+        for l in lemma.iter() {
+            self.tmp_lit_set.insert(*l);
+        }
+        for i in frame..self.frame.len() {
+            for l in self.frame[i].iter() {
+                if l.subsume_set(lemma, &self.tmp_lit_set) {
+                    self.tmp_lit_set.clear();
+                    return true;
+                }
+            }
+        }
+        self.tmp_lit_set.clear();
+        false
+    }
+
+    #[inline]
+    pub fn add_lemma(&mut self, frame: usize, lemma: logic_form::Lemma) {
+        if frame == 0 {
+            assert!(self.frame.len() == 1);
+            let cref = vec![self.solvers[0].add_lemma(&!lemma.cube())];
+            self.frame[0].push(Lemma { lemma, cref });
+            return;
+        }
+        if self.trivial_contained(frame, &lemma) {
+            return;
+        }
+        assert!(!self.model.cube_subsume_init(lemma.cube()));
+        let mut begin = None;
+        'fl: for i in (1..=frame).rev() {
+            let mut j = 0;
+            while j < self.frame[i].len() {
+                let l = &self.frame[i][j];
+                if begin.is_none() && l.subsume(&lemma) {
+                    if l.eq(&lemma) {
+                        let mut eq_lemma = self.frame[i].swap_remove(j);
+                        let clause = !lemma.cube();
+                        for k in i + 1..=frame {
+                            eq_lemma.cref.push(self.solvers[k].add_lemma(&clause));
+                        }
+                        assert!(eq_lemma.cref.len() == frame + 1);
+                        self.frame[frame].push(eq_lemma);
+                        self.early = self.early.min(i + 1);
+                        return;
+                    } else {
+                        begin = Some(i + 1);
+                        break 'fl;
+                    }
+                }
+                if lemma.subsume(l) {
+                    assert!(l.cref.len() == i + 1);
+                    for k in 0..=i {
+                        if l.cref[k] != CREF_NONE {
+                            self.solvers[k].remove_lemma(l.cref[k]);
+                        }
+                    }
+                    self.frame[i].swap_remove(j);
+                    continue;
+                }
+                j += 1;
+            }
+        }
+        let clause = !lemma.cube();
+        let begin = begin.unwrap_or(1);
+        let mut cref = vec![CREF_NONE; begin];
+        for i in begin..=frame {
+            cref.push(self.solvers[i].add_lemma(&clause))
+        }
+        assert!(cref.len() == frame + 1);
+        self.frame[frame].push(Lemma { lemma, cref });
+        self.early = self.early.min(begin);
+    }
+
+    pub fn blocked(
+        &mut self,
+        frame: usize,
+        cube: &Cube,
+        strengthen: bool,
+        bucket: bool,
+    ) -> BlockResult {
+        let solver_idx = frame - 1;
+        let assumption = self.model.cube_next(cube);
+        let res = if strengthen {
+            let constrain = !cube;
+            self.solvers[solver_idx].solve_with_constrain(&assumption, constrain, bucket)
+        } else {
+            self.solvers[solver_idx].solve_with_domain(&assumption, bucket)
+        };
+        match res {
+            SatResult::Sat(sat) => BlockResult::No(BlockResultNo { sat, assumption }),
+            SatResult::Unsat(unsat) => BlockResult::Yes(BlockResultYes {
+                unsat,
+                cube: cube.clone(),
+                assumption,
+            }),
+        }
+    }
+
+    pub fn get_bad(&mut self) -> Option<BlockResultNo> {
+        match self
+            .solvers
+            .last_mut()
+            .unwrap()
+            .solve_with_domain(&self.model.bad, false)
+        {
+            SatResult::Sat(sat) => Some(BlockResultNo {
+                sat,
+                assumption: self.model.bad.clone(),
+            }),
+            SatResult::Unsat(_) => None,
+        }
+    }
+
+    pub fn blocked_conflict(&mut self, block: BlockResultYes) -> Cube {
+        let mut ans = Cube::new();
+        for i in 0..block.cube.len() {
+            if block.unsat.has(block.assumption[i]) {
+                ans.push(block.cube[i]);
+            }
+        }
+        if self.model.cube_subsume_init(&ans) {
+            ans = Cube::new();
+            let new = *block
+                .cube
+                .iter()
+                .find(|l| {
+                    self.model
+                        .init_map
+                        .get(&l.var())
+                        .is_some_and(|i| *i != l.polarity())
+                })
+                .unwrap();
+            for i in 0..block.cube.len() {
+                if block.unsat.has(block.assumption[i]) || block.cube[i] == new {
+                    ans.push(block.cube[i]);
+                }
+            }
+            assert!(!self.model.cube_subsume_init(&ans));
+        }
+        ans
+    }
+
+    pub fn propagate(&mut self) -> bool {
+        for frame_idx in self.early..self.depth() {
+            self.frame[frame_idx].sort_by_key(|x| x.len());
+            let frame = self.frame[frame_idx].clone();
+            for lemma in frame {
+                if !self.frame[frame_idx].iter().any(|l| l.lemma == lemma.lemma) {
+                    continue;
+                }
+                match self.blocked(frame_idx + 1, &lemma, false, true) {
+                    BlockResult::Yes(blocked) => {
+                        let conflict = logic_form::Lemma::new(self.blocked_conflict(blocked));
+                        self.add_lemma(frame_idx + 1, conflict);
+                    }
+                    BlockResult::No(_) => {}
+                }
+            }
+            if self.frame[frame_idx].is_empty() {
+                return true;
+            }
+        }
+        self.early = self.frame.len() - 1;
+        false
     }
 }
