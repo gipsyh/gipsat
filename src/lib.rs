@@ -377,7 +377,6 @@ pub struct GipSAT {
     pub solvers: Vec<Solver>,
     tmp_lit_set: LitSet,
     early: usize,
-    remove: usize,
 }
 
 impl GipSAT {
@@ -390,7 +389,6 @@ impl GipSAT {
             solvers: Default::default(),
             tmp_lit_set,
             early: 1,
-            remove: 0,
         }
     }
 
@@ -423,7 +421,8 @@ impl GipSAT {
     }
 
     #[inline]
-    pub fn add_lemma(&mut self, frame: usize, lemma: logic_form::Lemma) {
+    pub fn add_lemma(&mut self, frame: usize, lemma: Cube) {
+        let lemma = logic_form::Lemma::new(lemma);
         if frame == 0 {
             assert!(self.frame.len() == 1);
             let cref = vec![self.solvers[0].add_lemma(&!lemma.cube())];
@@ -459,7 +458,6 @@ impl GipSAT {
                     assert!(l.cref.len() == i + 1);
                     for k in 0..=i {
                         if l.cref[k] != CREF_NONE {
-                            self.remove += 1;
                             self.solvers[k].remove_lemma(l.cref[k]);
                         }
                     }
@@ -559,7 +557,7 @@ impl GipSAT {
                 }
                 match self.blocked(frame_idx + 1, &lemma, false, true) {
                     BlockResult::Yes(blocked) => {
-                        let conflict = logic_form::Lemma::new(self.blocked_conflict(blocked));
+                        let conflict = self.blocked_conflict(blocked);
                         self.add_lemma(frame_idx + 1, conflict);
                     }
                     BlockResult::No(_) => {}
