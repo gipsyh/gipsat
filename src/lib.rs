@@ -158,20 +158,8 @@ impl Solver {
     }
 
     fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>, bucket: bool) {
-        if !self.pos_in_trail.is_empty() {
-            while self.trail.len() > self.pos_in_trail[0] {
-                let bt = self.trail.pop().unwrap();
-                self.value.set_none(bt.var());
-                self.phase_saving[bt] = Lbool::from(bt.polarity());
-                if self.temporary_domain {
-                    self.vsids.push(bt.var());
-                }
-            }
-            self.propagated = self.pos_in_trail[0];
-            self.pos_in_trail.truncate(0);
-        }
+        self.backtrack(0, self.temporary_domain);
         self.clean_temporary();
-
         // dbg!(&self.name);
         // self.vsids.activity.dbg();
         // dbg!(self.num_var());
@@ -251,15 +239,7 @@ impl Solver {
 
     pub fn set_domain(&mut self, domain: impl Iterator<Item = Lit>) {
         self.temporary_domain = true;
-        if !self.pos_in_trail.is_empty() {
-            while self.trail.len() > self.pos_in_trail[0] {
-                let bt = self.trail.pop().unwrap();
-                self.value.set_none(bt.var());
-                self.phase_saving[bt] = Lbool::from(bt.polarity());
-            }
-            self.propagated = self.pos_in_trail[0];
-            self.pos_in_trail.truncate(0);
-        }
+        self.backtrack(0, false);
         self.clean_temporary();
         self.domain
             .enable_local(domain.map(|l| l.var()), &self.ts, &self.value);
@@ -572,7 +552,7 @@ impl GipSAT {
             self.frame[frame_idx].sort_by_key(|x| x.len());
             let frame = self.frame[frame_idx].clone();
             for lemma in frame {
-                if !self.frame[frame_idx].iter().any(|l| l.lemma == lemma.lemma) {
+                if self.frame[frame_idx].iter().all(|l| l.lemma != lemma.lemma) {
                     continue;
                 }
                 match self.blocked(frame_idx + 1, &lemma, false, true) {

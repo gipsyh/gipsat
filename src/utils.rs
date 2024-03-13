@@ -1,9 +1,8 @@
+use rand::{rngs::StdRng, SeedableRng};
 use std::{
     fmt::Debug,
     ops::{Deref, DerefMut, Not},
 };
-
-use rand::{rngs::StdRng, SeedableRng};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Lbool(pub u8);

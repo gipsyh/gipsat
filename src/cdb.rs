@@ -190,11 +190,7 @@ impl Allocator {
         if unsafe { self.data[cref].header.learnt() } {
             len += 1;
         }
-        // if self.data.len() == cref + len {
-        //     self.data.truncate(cref)
-        // } else {
         self.wasted += len
-        // }
     }
 
     pub fn reloc(&mut self, cid: CRef, to: &mut Allocator) -> CRef {

@@ -15,8 +15,5 @@ impl Solver {
                 self.simplify.last_num_assign = self.trail.len();
             }
         }
-        // if self.statistic.num_solve % 5000 == 0 {
-        //     self.lemma_subsumption_simplify();
-        // }
     }
 }
