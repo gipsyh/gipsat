@@ -52,14 +52,17 @@ impl Solver {
         self.pos_in_trail.push(self.trail.len())
     }
 
-    pub fn backtrack(&mut self, level: usize) {
+    #[inline]
+    pub fn backtrack(&mut self, level: usize, vsids: bool) {
         if self.highest_level() <= level {
             return;
         }
         while self.trail.len() > self.pos_in_trail[level] {
             let bt = self.trail.pop().unwrap();
             self.value.set_none(bt.var());
-            self.vsids.push(bt.var());
+            if vsids {
+                self.vsids.push(bt.var());
+            }
             self.phase_saving[bt] = Lbool::from(bt.polarity());
         }
         self.propagated = self.pos_in_trail[level];
@@ -90,7 +93,7 @@ impl Solver {
                     return Some(false);
                 }
                 let (learnt, btl) = self.analyze(conflict);
-                self.backtrack(btl);
+                self.backtrack(btl, true);
                 if learnt.len() == 1 {
                     assert!(btl == 0);
                     self.assign(learnt[0], CREF_NONE);
@@ -113,7 +116,7 @@ impl Solver {
             } else {
                 if let Some(noc) = noc {
                     if num_conflict >= noc {
-                        self.backtrack(assumption.len());
+                        self.backtrack(assumption.len(), true);
                         return None;
                     }
                 }

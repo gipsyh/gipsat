@@ -141,7 +141,7 @@ impl Solver {
     }
 
     fn add_lemma(&mut self, lemma: &[Lit]) -> CRef {
-        self.backtrack(0);
+        self.backtrack(0, false);
         self.clean_temporary();
         for l in lemma.iter() {
             self.domain.lemma.insert(l.var());
@@ -150,7 +150,7 @@ impl Solver {
     }
 
     fn remove_lemma(&mut self, cref: CRef) {
-        self.backtrack(0);
+        self.backtrack(0, false);
         self.clean_temporary();
         if !self.locked(self.cdb.get(cref)) {
             self.remove_clause(cref)
@@ -377,6 +377,7 @@ pub struct GipSAT {
     pub solvers: Vec<Solver>,
     tmp_lit_set: LitSet,
     early: usize,
+    remove: usize,
 }
 
 impl GipSAT {
@@ -389,6 +390,7 @@ impl GipSAT {
             solvers: Default::default(),
             tmp_lit_set,
             early: 1,
+            remove: 0,
         }
     }
 
@@ -457,6 +459,7 @@ impl GipSAT {
                     assert!(l.cref.len() == i + 1);
                     for k in 0..=i {
                         if l.cref[k] != CREF_NONE {
+                            self.remove += 1;
                             self.solvers[k].remove_lemma(l.cref[k]);
                         }
                     }
@@ -568,5 +571,12 @@ impl GipSAT {
         }
         self.early = self.frame.len() - 1;
         false
+    }
+
+    pub fn statistic(&self) {
+        for f in self.frame.iter() {
+            print!("{} ", f.len());
+        }
+        println!();
     }
 }
