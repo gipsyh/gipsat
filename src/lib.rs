@@ -17,6 +17,7 @@ use domain::Domain;
 use giputils::gvec::Gvec;
 use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
+use rand::{rngs::StdRng, SeedableRng};
 use satif::{SatResult, SatifSat, SatifUnsat};
 use search::Value;
 use simplify::Simplify;
@@ -26,10 +27,8 @@ use std::{
     rc::Rc,
 };
 use transys::Model;
-use utils::Rng;
 use vsids::Vsids;
 
-#[derive(Default)]
 pub struct Solver {
     id: usize,
     cdb: ClauseDB,
@@ -57,7 +56,7 @@ pub struct Solver {
 
     constrain_act: Option<Lit>,
 
-    rng: Rng,
+    rng: StdRng,
 }
 
 impl Solver {
@@ -66,7 +65,25 @@ impl Solver {
             id,
             ts: ts.clone(),
             frame: frame.clone(),
-            ..Default::default()
+            cdb: Default::default(),
+            watchers: Default::default(),
+            value: Default::default(),
+            trail: Default::default(),
+            pos_in_trail: Default::default(),
+            level: Default::default(),
+            reason: Default::default(),
+            propagated: Default::default(),
+            vsids: Default::default(),
+            phase_saving: Default::default(),
+            analyze: Default::default(),
+            simplify: Default::default(),
+            unsat_core: Default::default(),
+            domain: Default::default(),
+            temporary_domain: Default::default(),
+            lazy_temporary: Default::default(),
+            statistic: Default::default(),
+            constrain_act: None,
+            rng: StdRng::seed_from_u64(0),
         };
         while solver.num_var() < solver.ts.num_var {
             solver.new_var();
