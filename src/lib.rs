@@ -331,6 +331,7 @@ impl BlockResultNo {
 #[derive(Debug, Clone)]
 pub struct Lemma {
     pub lemma: logic_form::Lemma,
+    begin: usize,
     cref: Vec<CRef>,
 }
 
@@ -340,6 +341,23 @@ impl Deref for Lemma {
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.lemma
+    }
+}
+
+impl Lemma {
+    #[inline]
+    fn get_cref(&self, id: usize) -> CRef {
+        if id < self.begin {
+            CREF_NONE
+        } else {
+            self.cref[id - self.begin]
+        }
+    }
+
+    #[inline]
+    fn set_cref(&mut self, id: usize, cref: CRef) {
+        assert!(id >= self.begin);
+        self.cref[id - self.begin] = cref
     }
 }
 
@@ -425,8 +443,12 @@ impl GipSAT {
         let lemma = logic_form::Lemma::new(lemma);
         if frame == 0 {
             assert!(self.frame.len() == 1);
-            let cref = vec![self.solvers[0].add_lemma(&!lemma.cube())];
-            self.frame[0].push(Lemma { lemma, cref });
+            assert!(self.solvers[0].add_lemma(&!lemma.cube()) == CREF_NONE);
+            self.frame[0].push(Lemma {
+                lemma,
+                cref: Vec::new(),
+                begin: 1,
+            });
             return;
         }
         if self.trivial_contained(frame, &lemma) {
@@ -445,7 +467,6 @@ impl GipSAT {
                         for k in i + 1..=frame {
                             eq_lemma.cref.push(self.solvers[k].add_lemma(&clause));
                         }
-                        assert!(eq_lemma.cref.len() == frame + 1);
                         self.frame[frame].push(eq_lemma);
                         self.early = self.early.min(i + 1);
                         return;
@@ -455,10 +476,10 @@ impl GipSAT {
                     }
                 }
                 if lemma.subsume(l) {
-                    assert!(l.cref.len() == i + 1);
-                    for k in 0..=i {
-                        if l.cref[k] != CREF_NONE {
-                            self.solvers[k].remove_lemma(l.cref[k]);
+                    for k in l.begin..=i {
+                        let cref = l.get_cref(k);
+                        if cref != CREF_NONE {
+                            self.solvers[k].remove_lemma(cref);
                         }
                     }
                     self.frame[i].swap_remove(j);
@@ -469,12 +490,11 @@ impl GipSAT {
         }
         let clause = !lemma.cube();
         let begin = begin.unwrap_or(1);
-        let mut cref = vec![CREF_NONE; begin];
+        let mut cref = Vec::new();
         for i in begin..=frame {
             cref.push(self.solvers[i].add_lemma(&clause))
         }
-        assert!(cref.len() == frame + 1);
-        self.frame[frame].push(Lemma { lemma, cref });
+        self.frame[frame].push(Lemma { lemma, cref, begin });
         self.early = self.early.min(begin);
     }
 
@@ -567,7 +587,7 @@ impl GipSAT {
                 return true;
             }
         }
-        self.early = self.frame.len() - 1;
+        self.early = self.depth();
         false
     }
 

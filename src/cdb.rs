@@ -436,8 +436,9 @@ impl Solver {
 
             for i in self.id..self.frame.len() {
                 for l in self.frame[i].iter_mut() {
-                    if l.cref[self.id] != CREF_NONE {
-                        l.cref[self.id] = self.cdb.allocator.reloc(l.cref[self.id], &mut to)
+                    let cref = l.get_cref(self.id);
+                    if cref != CREF_NONE {
+                        l.set_cref(self.id, self.cdb.allocator.reloc(cref, &mut to));
                     }
                 }
             }
