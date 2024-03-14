@@ -334,6 +334,7 @@ impl Solver {
         }
     }
 
+    #[inline]
     pub fn locked(&self, cls: Clause) -> bool {
         self.value.v(cls[0]).is_true() && self.reason[cls[0]] != CREF_NONE
     }

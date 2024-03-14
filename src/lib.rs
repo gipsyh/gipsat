@@ -44,19 +44,16 @@ pub struct Solver {
     analyze: Analyze,
     simplify: Simplify,
     unsat_core: LitSet,
-
     domain: Domain,
     temporary_domain: bool,
     lazy_temporary: Vec<Clause>,
+    constrain_act: Option<Lit>,
 
     ts: Rc<Model>,
     frame: Frame,
 
-    statistic: Statistic,
-
-    constrain_act: Option<Lit>,
-
     rng: StdRng,
+    statistic: Statistic,
 }
 
 impl Solver {
@@ -157,6 +154,7 @@ impl Solver {
         }
     }
 
+    #[inline]
     fn add_lemma(&mut self, lemma: &[Lit]) -> CRef {
         self.backtrack(0, false);
         self.clean_temporary();
@@ -166,6 +164,7 @@ impl Solver {
         self.add_clause_inner(lemma, ClauseKind::Lemma)
     }
 
+    #[inline]
     fn remove_lemma(&mut self, cref: CRef) {
         self.backtrack(0, false);
         self.clean_temporary();
@@ -408,10 +407,11 @@ impl GipSAT {
     }
 
     #[inline]
-    pub fn depth(&self) -> usize {
+    pub fn level(&self) -> usize {
         self.frame.len() - 1
     }
 
+    #[inline]
     pub fn new_frame(&mut self) {
         self.solvers
             .push(Solver::new(self.frame.len(), &self.model, &self.frame));
@@ -565,7 +565,7 @@ impl GipSAT {
     }
 
     pub fn propagate(&mut self) -> bool {
-        for frame_idx in self.early..self.depth() {
+        for frame_idx in self.early..self.level() {
             self.frame[frame_idx].sort_by_key(|x| x.len());
             let frame = self.frame[frame_idx].clone();
             for lemma in frame {
@@ -584,7 +584,7 @@ impl GipSAT {
                 return true;
             }
         }
-        self.early = self.depth();
+        self.early = self.level();
         false
     }
 
