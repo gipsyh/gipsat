@@ -2,7 +2,10 @@ use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
 use giputils::gvec::Gvec;
 use logic_form::{Lit, Var, VarMap};
 use rand::Rng;
-use std::ops::{Index, MulAssign};
+use std::{
+    mem::swap,
+    ops::{Index, MulAssign},
+};
 
 #[derive(Default)]
 pub struct BinaryHeap {
@@ -14,11 +17,6 @@ impl BinaryHeap {
     #[inline]
     fn reserve(&mut self, var: Var) {
         self.pos.reserve(var);
-    }
-
-    #[inline]
-    fn len(&self) -> u32 {
-        self.heap.len()
     }
 
     #[inline]
@@ -166,86 +164,102 @@ impl IntervalHeap {
         act.pos[v] = idx;
     }
 
+    #[inline]
     fn down_max(&mut self, mut right: u32, act: &mut Activity) {
+        debug_assert!(Self::right(right) == right);
+        let mut right_v = self.heap[right];
         loop {
             let c1 = right * 2 + 1;
-            let c2 = right * 2 + 3;
             if self.heap.len() <= c1 {
-                return;
+                break;
             }
+            let c2 = right * 2 + 3;
             let ch = if self.heap.len() <= c2 || act[self.heap[c1]] > act[self.heap[c2]] {
                 c1
             } else {
                 c2
             };
-            if act[self.heap[ch]] > act[self.heap[right]] {
-                act.pos.swap(self.heap[ch], self.heap[right]);
-                self.heap.swap(ch, right);
+            if act[self.heap[ch]] > act[right_v] {
+                self.heap[right] = self.heap[ch];
+                act.pos[self.heap[right]] = right;
                 right = ch;
                 let left = right - 1;
-                if act[self.heap[left]] > act[self.heap[right]] {
-                    act.pos.swap(self.heap[left], self.heap[right]);
-                    self.heap.swap(left, right);
+                if act[self.heap[left]] > act[right_v] {
+                    swap(&mut right_v, &mut self.heap[left]);
+                    act.pos[self.heap[left]] = left;
                 }
             } else {
                 break;
             }
         }
+        self.heap[right] = right_v;
+        act.pos[right_v] = right;
     }
 
+    #[inline]
     fn down_min(&mut self, mut left: u32, act: &mut Activity) {
+        debug_assert!(Self::left(left) == left);
+        let mut left_v = self.heap[left];
         loop {
             let c1 = left * 2 + 2;
-            let c2 = left * 2 + 4;
             if self.heap.len() <= c1 {
-                return;
+                break;
             }
+            let c2 = left * 2 + 4;
             let ch = if self.heap.len() <= c2 || act[self.heap[c1]] < act[self.heap[c2]] {
                 c1
             } else {
                 c2
             };
-            if act[self.heap[ch]] < act[self.heap[left]] {
-                act.pos.swap(self.heap[ch], self.heap[left]);
-                self.heap.swap(ch, left);
+            if act[self.heap[ch]] < act[left_v] {
+                self.heap[left] = self.heap[ch];
+                act.pos[self.heap[left]] = left;
                 left = ch;
                 let right = left + 1;
-                if right < self.heap.len() && act[self.heap[left]] > act[self.heap[right]] {
-                    act.pos.swap(self.heap[left], self.heap[right]);
-                    self.heap.swap(left, right);
+                if right < self.heap.len() && act[left_v] > act[self.heap[right]] {
+                    swap(&mut left_v, &mut self.heap[right]);
+                    act.pos[self.heap[right]] = right;
                 }
             } else {
                 break;
             }
         }
+        self.heap[left] = left_v;
+        act.pos[left_v] = left;
     }
 
-    fn down_min_x(&mut self, mut left: u32, act: &mut Activity) {
+    #[inline]
+    fn down_min_bottom(&mut self, mut left: u32, act: &mut Activity) {
+        debug_assert!(Self::left(left) == left);
+        let left_v = self.heap[left];
         loop {
             let c1 = left * 2 + 2;
-            let c2 = left * 2 + 4;
             if self.heap.len() <= c1 {
-                return;
+                break;
             }
+            let c2 = left * 2 + 4;
             let ch = if self.heap.len() <= c2 || act[self.heap[c1]] < act[self.heap[c2]] {
                 c1
             } else {
                 c2
             };
-            if act[self.heap[ch]] < act[self.heap[left]] {
-                act.pos.swap(self.heap[ch], self.heap[left]);
-                self.heap.swap(ch, left);
+            if act[self.heap[ch]] < act[left_v] {
+                self.heap[left] = self.heap[ch];
+                act.pos[self.heap[left]] = left;
                 left = ch;
             } else {
                 break;
             }
         }
+        self.heap[left] = left_v;
+        act.pos[left_v] = left;
     }
 
+    #[inline]
     fn up(&mut self, var: Var, act: &mut Activity) {
         let idx = act.pos[var];
-        if idx % 2 == 0 {
-            self.down_min_x(idx, act)
+        if Self::left(idx) == idx {
+            self.down_min_bottom(idx, act)
         }
         let mut idx = act.pos[var];
         let max = Self::right(idx);
@@ -257,6 +271,7 @@ impl IntervalHeap {
         self.up_max(idx, act)
     }
 
+    #[inline]
     pub fn push(&mut self, v: Var, act: &mut Activity) {
         self.heap.push(v);
         act.pos[v] = self.heap.len() - 1;
@@ -276,6 +291,7 @@ impl IntervalHeap {
         }
     }
 
+    #[inline]
     pub fn max(&self) -> Option<Var> {
         match self.heap.len() {
             0..=2 => self.heap.last().cloned(),
@@ -283,6 +299,7 @@ impl IntervalHeap {
         }
     }
 
+    #[inline]
     pub fn pop_max(&mut self, act: &mut Activity) -> Option<Var> {
         match self.heap.len() {
             0..=2 => self.heap.pop(),
@@ -295,6 +312,7 @@ impl IntervalHeap {
         }
     }
 
+    #[inline]
     pub fn min(&self) -> Option<Var> {
         match self.heap.len() {
             0 => None,
@@ -302,6 +320,7 @@ impl IntervalHeap {
         }
     }
 
+    #[inline]
     pub fn pop_min(&mut self, act: &mut Activity) -> Option<Var> {
         match self.heap.len() {
             0 => None,
