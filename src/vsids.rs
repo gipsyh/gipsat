@@ -229,45 +229,39 @@ impl IntervalHeap {
     }
 
     #[inline]
-    fn down_min_bottom(&mut self, mut left: u32, act: &mut Activity) {
-        debug_assert!(Self::left(left) == left);
-        let left_v = self.heap[left];
-        loop {
-            let c1 = left * 2 + 2;
-            if self.heap.len() <= c1 {
-                break;
-            }
-            let c2 = left * 2 + 4;
-            let ch = if self.heap.len() <= c2 || act[self.heap[c1]] < act[self.heap[c2]] {
-                c1
-            } else {
-                c2
-            };
-            if act[self.heap[ch]] < act[left_v] {
-                self.heap[left] = self.heap[ch];
-                act.pos[self.heap[left]] = left;
-                left = ch;
-            } else {
-                break;
-            }
-        }
-        self.heap[left] = left_v;
-        act.pos[left_v] = left;
-    }
-
-    #[inline]
     fn up(&mut self, var: Var, act: &mut Activity) {
-        let idx = act.pos[var];
-        if Self::left(idx) == idx {
-            self.down_min_bottom(idx, act)
-        }
         let mut idx = act.pos[var];
-        let max = Self::right(idx);
-        if max < self.len() && act[self.heap[idx]] > act[self.heap[max]] {
-            act.pos.swap(self.heap[idx], self.heap[max]);
-            self.heap.swap(max, idx);
-            idx = max;
+        if Self::left(idx) == idx {
+            let mut left = idx;
+            loop {
+                let c1 = left * 2 + 2;
+                if self.heap.len() <= c1 {
+                    break;
+                }
+                let c2 = left * 2 + 4;
+                let ch = if self.heap.len() <= c2 || act[self.heap[c1]] < act[self.heap[c2]] {
+                    c1
+                } else {
+                    c2
+                };
+                if act[self.heap[ch]] < act[var] {
+                    self.heap[left] = self.heap[ch];
+                    act.pos[self.heap[left]] = left;
+                    left = ch;
+                } else {
+                    break;
+                }
+            }
+            idx = left;
         }
+        let right = Self::right(idx);
+        if right < self.len() && act[var] > act[self.heap[right]] {
+            self.heap[idx] = self.heap[right];
+            act.pos[self.heap[idx]] = idx;
+            idx = right;
+        }
+        self.heap[idx] = var;
+        act.pos[var] = idx;
         self.up_max(idx, act)
     }
 
@@ -281,14 +275,8 @@ impl IntervalHeap {
             act.pos.swap(self.heap[min], self.heap[max]);
             self.heap.swap(max, min);
         }
-        if min > 1 {
-            if act[self.heap[min]] < act[self.heap[Self::parent_left(min)]] {
-                self.up_min(min, act)
-            }
-            if act[self.heap[max]] > act[self.heap[Self::parent_right(max)]] {
-                self.up_max(max, act)
-            }
-        }
+        self.up_min(min, act);
+        self.up_max(max, act);
     }
 
     #[inline]
@@ -378,12 +366,12 @@ impl IntervalHeap {
     // }
 }
 
-const NUM_BUCKET: usize = 15;
+const NUM_BUCKET: u32 = 15;
 
 pub struct Activity {
     activity: VarMap<f64>,
     act_inc: f64,
-    bucket_heap: [IntervalHeap; NUM_BUCKET],
+    bucket_heap: Gvec<IntervalHeap>,
     bucket: VarMap<Option<u32>>,
     pos: VarMap<u32>,
 }
@@ -444,7 +432,7 @@ impl Activity {
     #[inline]
     fn up(&mut self, var: Var) {
         let act = unsafe { &mut *(self as *mut Activity) };
-        let mut now = self.bucket[var].unwrap() as usize;
+        let mut now = self.bucket[var].unwrap();
         self.activity[var] += self.act_inc;
         self.bucket_heap[now].up(var, act);
         while now > 0 {
@@ -513,10 +501,14 @@ impl Activity {
 
 impl Default for Activity {
     fn default() -> Self {
+        let mut bucket_heap = Gvec::new();
+        for _ in 0..NUM_BUCKET {
+            bucket_heap.push(IntervalHeap::default());
+        }
         Self {
             act_inc: 1.0,
             activity: Default::default(),
-            bucket_heap: Default::default(),
+            bucket_heap,
             bucket: Default::default(),
             pos: Default::default(),
         }
