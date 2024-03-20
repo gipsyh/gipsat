@@ -359,7 +359,7 @@ impl IntervalHeap {
     // }
 }
 
-const NUM_BUCKET: usize = 10;
+const NUM_BUCKET: usize = 15;
 
 pub struct Activity {
     activity: VarMap<f64>,
