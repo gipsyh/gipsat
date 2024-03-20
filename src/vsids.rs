@@ -103,10 +103,270 @@ impl BinaryHeap {
     }
 }
 
+#[derive(Default)]
+pub struct IntervalHeap {
+    heap: Gvec<Var>,
+}
+
+impl IntervalHeap {
+    #[inline]
+    fn len(&self) -> u32 {
+        self.heap.len()
+    }
+
+    #[inline]
+    fn left(x: u32) -> u32 {
+        x & !1
+    }
+
+    #[inline]
+    fn right(x: u32) -> u32 {
+        x | 1
+    }
+
+    #[inline]
+    fn parent_left(x: u32) -> u32 {
+        Self::left((x - 2) >> 1)
+    }
+
+    #[inline]
+    fn parent_right(x: u32) -> u32 {
+        Self::right((x - 2) >> 1)
+    }
+
+    #[inline]
+    fn up_max(&mut self, mut idx: u32, act: &mut Activity) {
+        let v = self.heap[idx];
+        while idx > 1 {
+            let pidx = Self::parent_right(idx);
+            if act[self.heap[pidx]] >= act[v] {
+                break;
+            }
+            self.heap[idx] = self.heap[pidx];
+            act.pos[self.heap[idx]] = idx;
+            idx = pidx;
+        }
+        self.heap[idx] = v;
+        act.pos[v] = idx;
+    }
+
+    #[inline]
+    fn up_min(&mut self, mut idx: u32, act: &mut Activity) {
+        let v = self.heap[idx];
+        while idx > 1 {
+            let pidx = Self::parent_left(idx);
+            if act[self.heap[pidx]] <= act[v] {
+                break;
+            }
+            self.heap[idx] = self.heap[pidx];
+            act.pos[self.heap[idx]] = idx;
+            idx = pidx;
+        }
+        self.heap[idx] = v;
+        act.pos[v] = idx;
+    }
+
+    fn down_max(&mut self, mut right: u32, act: &mut Activity) {
+        loop {
+            let c1 = right * 2 + 1;
+            let c2 = right * 2 + 3;
+            if self.heap.len() <= c1 {
+                return;
+            }
+            let ch = if self.heap.len() <= c2 || act[self.heap[c1]] > act[self.heap[c2]] {
+                c1
+            } else {
+                c2
+            };
+            if act[self.heap[ch]] > act[self.heap[right]] {
+                act.pos.swap(self.heap[ch], self.heap[right]);
+                self.heap.swap(ch, right);
+                right = ch;
+                let left = right - 1;
+                if act[self.heap[left]] > act[self.heap[right]] {
+                    act.pos.swap(self.heap[left], self.heap[right]);
+                    self.heap.swap(left, right);
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn down_min(&mut self, mut left: u32, act: &mut Activity) {
+        loop {
+            let c1 = left * 2 + 2;
+            let c2 = left * 2 + 4;
+            if self.heap.len() <= c1 {
+                return;
+            }
+            let ch = if self.heap.len() <= c2 || act[self.heap[c1]] < act[self.heap[c2]] {
+                c1
+            } else {
+                c2
+            };
+            if act[self.heap[ch]] < act[self.heap[left]] {
+                act.pos.swap(self.heap[ch], self.heap[left]);
+                self.heap.swap(ch, left);
+                left = ch;
+                let right = left + 1;
+                if right < self.heap.len() && act[self.heap[left]] > act[self.heap[right]] {
+                    act.pos.swap(self.heap[left], self.heap[right]);
+                    self.heap.swap(left, right);
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn down_min_x(&mut self, mut left: u32, act: &mut Activity) {
+        loop {
+            let c1 = left * 2 + 2;
+            let c2 = left * 2 + 4;
+            if self.heap.len() <= c1 {
+                return;
+            }
+            let ch = if self.heap.len() <= c2 || act[self.heap[c1]] < act[self.heap[c2]] {
+                c1
+            } else {
+                c2
+            };
+            if act[self.heap[ch]] < act[self.heap[left]] {
+                act.pos.swap(self.heap[ch], self.heap[left]);
+                self.heap.swap(ch, left);
+                left = ch;
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn up(&mut self, var: Var, act: &mut Activity) {
+        let idx = act.pos[var];
+        if idx % 2 == 0 {
+            self.down_min_x(idx, act)
+        }
+        let mut idx = act.pos[var];
+        let max = Self::right(idx);
+        if max < self.len() && act[self.heap[idx]] > act[self.heap[max]] {
+            act.pos.swap(self.heap[idx], self.heap[max]);
+            self.heap.swap(max, idx);
+            idx = max;
+        }
+        self.up_max(idx, act)
+    }
+
+    pub fn push(&mut self, v: Var, act: &mut Activity) {
+        self.heap.push(v);
+        act.pos[v] = self.heap.len() - 1;
+        let max = self.heap.len() - 1;
+        let min = Self::left(max);
+        if act[self.heap[min]] > act[v] {
+            act.pos.swap(self.heap[min], self.heap[max]);
+            self.heap.swap(max, min);
+        }
+        if min > 1 {
+            if act[self.heap[min]] < act[self.heap[Self::parent_left(min)]] {
+                self.up_min(min, act)
+            }
+            if act[self.heap[max]] > act[self.heap[Self::parent_right(max)]] {
+                self.up_max(max, act)
+            }
+        }
+    }
+
+    pub fn max(&self) -> Option<Var> {
+        match self.heap.len() {
+            0..=2 => self.heap.last().cloned(),
+            _ => Some(self.heap[1]),
+        }
+    }
+
+    pub fn pop_max(&mut self, act: &mut Activity) -> Option<Var> {
+        match self.heap.len() {
+            0..=2 => self.heap.pop(),
+            _ => {
+                let res = self.heap.swap_remove(1);
+                act.pos[self.heap[1]] = 1;
+                self.down_max(1, act);
+                Some(res)
+            }
+        }
+    }
+
+    pub fn min(&self) -> Option<Var> {
+        match self.heap.len() {
+            0 => None,
+            _ => Some(self.heap[0]),
+        }
+    }
+
+    pub fn pop_min(&mut self, act: &mut Activity) -> Option<Var> {
+        match self.heap.len() {
+            0 => None,
+            1..=2 => {
+                let res = Some(self.heap.swap_remove(0));
+                if !self.heap.is_empty() {
+                    act.pos[self.heap[0]] = 0;
+                }
+                res
+            }
+            _ => {
+                let res = self.heap.swap_remove(0);
+                act.pos[self.heap[0]] = 0;
+                self.down_min(0, act);
+                Some(res)
+            }
+        }
+    }
+
+    // fn valid(&self, act: &mut Activity) {
+    //     let mut i = 0;
+    //     while i < self.heap.len() {
+    //         if i + 1 < self.len() {
+    //             assert!(act[self.heap[i]] <= act[self.heap[i]]);
+    //         }
+    //         let c1 = i * 2 + 2;
+    //         if c1 < self.len() {
+    //             assert!(act[self.heap[i]] <= act[self.heap[c1]]);
+    //         }
+    //         let c2 = i * 2 + 4;
+    //         if c2 < self.len() {
+    //             assert!(act[self.heap[i]] <= act[self.heap[c2]]);
+    //         }
+    //         i += 2;
+    //     }
+    //     let mut i = 1;
+    //     while i < self.heap.len() {
+    //         assert!(act[self.heap[i]] >= act[self.heap[i - 1]]);
+    //         let c1 = i * 2 + 1;
+    //         if c1 < self.len() {
+    //             assert!(act[self.heap[i]] >= act[self.heap[c1]]);
+    //         }
+    //         let c2 = i * 2 + 3;
+    //         if c2 < self.len() {
+    //             assert!(act[self.heap[i]] >= act[self.heap[c2]]);
+    //         }
+    //         i += 2;
+    //     }
+    // }
+
+    // pub fn print(&self, act: &mut Activity) {
+    //     for x in self.heap.iter() {
+    //         dbg!(*x, act[*x]);
+    //     }
+    // }
+}
+
+const NUM_BUCKET: usize = 10;
+
 pub struct Activity {
     activity: VarMap<f64>,
     act_inc: f64,
-    bucket_heap: BinaryHeap,
+    bucket_heap: [IntervalHeap; NUM_BUCKET],
+    bucket: VarMap<Option<u32>>,
+    pos: VarMap<u32>,
 }
 
 impl Index<Var> for Activity {
@@ -122,31 +382,33 @@ impl Activity {
     #[inline]
     pub fn reserve(&mut self, var: Var) {
         self.activity.reserve(var);
-        self.bucket_heap.reserve(var);
+        self.bucket.reserve(var);
+        self.pos.reserve(var);
     }
 
     #[inline]
     fn check(&mut self, var: Var) {
-        let activity = self as *const Self;
-        if self.bucket_heap.pos[var].is_none() {
-            self.bucket_heap.push(var, unsafe { &*activity });
+        let act = unsafe { &mut *(self as *mut Activity) };
+        if self.bucket[var].is_none() {
+            assert!(act[var] == 0.0);
+            self.bucket_heap[NUM_BUCKET - 1].push(var, act);
+            self.bucket[var] = Some(NUM_BUCKET as u32 - 1);
+            self.update();
         }
-        assert!(self.bucket_heap.pos[var].is_some())
+        assert!(self.bucket[var].is_some())
     }
 
     fn bucket(&self, var: Var) -> u32 {
-        match self.bucket_heap.pos[var] {
-            Some(b) => u32::BITS - b.leading_zeros(),
-            None => u32::BITS - self.bucket_heap.len().leading_zeros() + 1,
+        match self.bucket[var] {
+            Some(b) => b,
+            None => NUM_BUCKET as u32,
         }
     }
 
     #[inline]
     pub fn bump(&mut self, var: Var) {
-        self.activity[var] += self.act_inc;
         self.check(var);
-        let activity = self as *const Self;
-        self.bucket_heap.up(var, unsafe { &*activity });
+        self.up(var);
         if self.activity[var] > 1e100 {
             self.activity.iter_mut().for_each(|a| a.mul_assign(1e-100));
             self.act_inc *= 1e-100;
@@ -159,6 +421,75 @@ impl Activity {
     pub fn decay(&mut self) {
         self.act_inc *= 1.0 / Self::DECAY
     }
+
+    #[inline]
+    fn up(&mut self, var: Var) {
+        let act = unsafe { &mut *(self as *mut Activity) };
+        let mut now = self.bucket[var].unwrap() as usize;
+        self.activity[var] += self.act_inc;
+        self.bucket_heap[now].up(var, act);
+        while now > 0 {
+            if self.activity[self.bucket_heap[now].max().unwrap()]
+                > self.activity[self.bucket_heap[now - 1].min().unwrap()]
+            {
+                let max = self.bucket_heap[now].pop_max(act).unwrap();
+                let min = self.bucket_heap[now - 1].pop_min(act).unwrap();
+                self.bucket[max] = Some(now as u32 - 1);
+                self.bucket[min] = Some(now as u32);
+                self.bucket_heap[now].push(min, act);
+                self.bucket_heap[now - 1].push(max, act);
+            } else {
+                break;
+            }
+            now -= 1;
+        }
+    }
+
+    #[inline]
+    fn update(&mut self) {
+        let mut now = NUM_BUCKET - 1;
+        let act = unsafe { &mut *(self as *mut Activity) };
+        while now > 0 {
+            if self.bucket_heap[now].len() > self.bucket_heap[now - 1].len() * 2 {
+                let max = self.bucket_heap[now].pop_max(act).unwrap();
+                self.bucket[max] = Some(now as u32 - 1);
+                self.bucket_heap[now - 1].push(max, act);
+            } else {
+                break;
+            }
+            now -= 1;
+        }
+    }
+
+    // pub fn print(&self) {
+    //     dbg!("begin print");
+    //     for i in 0..NUM_BUCKET {
+    //         dbg!(i);
+    //         dbg!(self.bucket_heap[i].len());
+    //         if self.bucket_heap[i].len() > 0 {
+    //             let max = self.activity[self.bucket_heap[i].max().unwrap()];
+    //             let min = self.activity[self.bucket_heap[i].min().unwrap()];
+    //             dbg!(max);
+    //             dbg!(min);
+    //         }
+    //     }
+    //     dbg!("end");
+    // }
+
+    // pub fn valid(&self) {
+    //     let mut m = None;
+    //     for i in 0..NUM_BUCKET {
+    //         if self.bucket_heap[i].len() > 0 {
+    //             let max = self.activity[self.bucket_heap[i].max().unwrap()];
+    //             let min = self.activity[self.bucket_heap[i].min().unwrap()];
+    //             assert!(max >= min);
+    //             if let Some(m) = m {
+    //                 assert!(m >= max);
+    //             }
+    //             m = Some(min);
+    //         }
+    //     }
+    // }
 }
 
 impl Default for Activity {
@@ -167,6 +498,8 @@ impl Default for Activity {
             act_inc: 1.0,
             activity: Default::default(),
             bucket_heap: Default::default(),
+            bucket: Default::default(),
+            pos: Default::default(),
         }
     }
 }

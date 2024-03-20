@@ -177,7 +177,7 @@ impl Solver {
         self.backtrack(0, self.temporary_domain);
         self.clean_temporary();
         // dbg!(&self.name);
-        // self.vsids.activity.dbg();
+        // self.vsids.activity.print();
         // dbg!(self.num_var());
         // dbg!(self.trail.len());
         // dbg!(self.cdb.num_leanrt());
