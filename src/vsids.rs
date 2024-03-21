@@ -1,5 +1,5 @@
 use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
-use giputils::{gvec::Gvec, OptionU32};
+use giputils::{gvec::Gvec, OptionU32, OptionU8};
 use logic_form::{Lit, Var, VarMap};
 use rand::Rng;
 use std::{
@@ -372,7 +372,7 @@ pub struct Activity {
     activity: VarMap<f64>,
     act_inc: f64,
     bucket_heap: Gvec<IntervalHeap>,
-    bucket: VarMap<Option<u32>>,
+    bucket: VarMap<OptionU8>,
     pos: VarMap<u32>,
 }
 
@@ -399,22 +399,23 @@ impl Activity {
         if self.bucket[var].is_none() {
             assert!(act[var] == 0.0);
             self.bucket_heap[NUM_BUCKET - 1].push(var, act);
-            self.bucket[var] = Some(NUM_BUCKET as u32 - 1);
+            *self.bucket[var] = NUM_BUCKET as u8 - 1;
             self.update();
         }
-        assert!(self.bucket[var].is_some())
     }
 
+    #[inline]
     fn bucket(&self, var: Var) -> u32 {
         match self.bucket[var] {
-            Some(b) => b,
-            None => NUM_BUCKET as u32,
+            OptionU8::NONE => NUM_BUCKET,
+            b => *b as u32,
         }
     }
 
     #[inline]
     pub fn bump(&mut self, var: Var) {
         self.check(var);
+        self.activity[var] += self.act_inc;
         self.up(var);
         if self.activity[var] > 1e100 {
             self.activity.iter_mut().for_each(|a| a.mul_assign(1e-100));
@@ -432,8 +433,7 @@ impl Activity {
     #[inline]
     fn up(&mut self, var: Var) {
         let act = unsafe { &mut *(self as *mut Activity) };
-        let mut now = self.bucket[var].unwrap();
-        self.activity[var] += self.act_inc;
+        let mut now = *self.bucket[var] as u32;
         self.bucket_heap[now].up(var, act);
         while now > 0 {
             if self.activity[self.bucket_heap[now].max().unwrap()]
@@ -441,8 +441,8 @@ impl Activity {
             {
                 let max = self.bucket_heap[now].pop_max(act).unwrap();
                 let min = self.bucket_heap[now - 1].pop_min(act).unwrap();
-                self.bucket[max] = Some(now as u32 - 1);
-                self.bucket[min] = Some(now as u32);
+                *self.bucket[max] = now as u8 - 1;
+                *self.bucket[min] = now as u8;
                 self.bucket_heap[now].push(min, act);
                 self.bucket_heap[now - 1].push(max, act);
             } else {
@@ -459,7 +459,7 @@ impl Activity {
         while now > 0 {
             if self.bucket_heap[now].len() > self.bucket_heap[now - 1].len() * 2 {
                 let max = self.bucket_heap[now].pop_max(act).unwrap();
-                self.bucket[max] = Some(now as u32 - 1);
+                *self.bucket[max] = now as u8 - 1;
                 self.bucket_heap[now - 1].push(max, act);
             } else {
                 break;
@@ -612,6 +612,7 @@ impl Bucket {
         None
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         while self.head < self.buckets.len() {
             while let Some(var) = self.buckets[self.head].pop() {
