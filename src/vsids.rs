@@ -1,5 +1,5 @@
 use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
-use giputils::gvec::Gvec;
+use giputils::{gvec::Gvec, OptionU32};
 use logic_form::{Lit, Var, VarMap};
 use rand::Rng;
 use std::{
@@ -10,7 +10,7 @@ use std::{
 #[derive(Default)]
 pub struct BinaryHeap {
     heap: Gvec<Var>,
-    pos: VarMap<Option<u32>>,
+    pos: VarMap<OptionU32>,
 }
 
 impl BinaryHeap {
@@ -22,7 +22,7 @@ impl BinaryHeap {
     #[inline]
     pub fn clear(&mut self) {
         for v in self.heap.iter() {
-            self.pos[*v] = None;
+            self.pos[*v] = OptionU32::NONE;
         }
         self.heap.clear();
     }
@@ -30,8 +30,8 @@ impl BinaryHeap {
     #[inline]
     fn up(&mut self, v: Var, activity: &Activity) {
         let mut idx = match self.pos[v] {
-            Some(idx) => idx,
-            None => return,
+            OptionU32::NONE => return,
+            idx => *idx,
         };
         while idx != 0 {
             let pidx = (idx - 1) >> 1;
@@ -39,11 +39,11 @@ impl BinaryHeap {
                 break;
             }
             self.heap[idx] = self.heap[pidx];
-            self.pos[self.heap[idx]] = Some(idx);
+            *self.pos[self.heap[idx]] = idx;
             idx = pidx;
         }
         self.heap[idx] = v;
-        self.pos[v] = Some(idx);
+        *self.pos[v] = idx;
     }
 
     #[inline]
@@ -66,11 +66,11 @@ impl BinaryHeap {
                 break;
             }
             self.heap[idx] = self.heap[child];
-            self.pos[self.heap[idx]] = Some(idx);
+            *self.pos[self.heap[idx]] = idx;
             idx = child;
         }
         self.heap[idx] = v;
-        self.pos[v] = Some(idx);
+        *self.pos[v] = idx;
     }
 
     #[inline]
@@ -80,7 +80,7 @@ impl BinaryHeap {
         }
         let idx = self.heap.len();
         self.heap.push(var);
-        self.pos[var] = Some(idx);
+        *self.pos[var] = idx;
         self.up(var, activity);
     }
 
@@ -91,8 +91,8 @@ impl BinaryHeap {
         }
         let value = self.heap[0];
         self.heap[0] = self.heap[self.heap.len() - 1];
-        self.pos[self.heap[0]] = Some(0);
-        self.pos[value] = None;
+        *self.pos[self.heap[0]] = 0;
+        self.pos[value] = OptionU32::NONE;
         self.heap.pop();
         if self.heap.len() > 1 {
             self.down(0, activity);
