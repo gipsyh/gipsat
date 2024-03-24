@@ -26,7 +26,7 @@ use std::{
     ops::{Deref, DerefMut},
     rc::Rc,
 };
-use transys::Model;
+use transys::Transys;
 use vsids::Vsids;
 
 pub struct Solver {
@@ -49,7 +49,7 @@ pub struct Solver {
     lazy_temporary: Vec<Clause>,
     constrain_act: Option<Lit>,
 
-    ts: Rc<Model>,
+    ts: Rc<Transys>,
     frame: Frame,
 
     rng: StdRng,
@@ -57,7 +57,7 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new(id: usize, ts: &Rc<Model>, frame: &Frame) -> Self {
+    pub fn new(id: usize, ts: &Rc<Transys>, frame: &Frame) -> Self {
         let mut solver = Self {
             id,
             ts: ts.clone(),
@@ -127,7 +127,7 @@ impl Solver {
         Some(clause)
     }
 
-    pub fn add_clause_inner(&mut self, clause: &[Lit], mut kind: ClauseKind) -> CRef {
+    fn add_clause_inner(&mut self, clause: &[Lit], mut kind: ClauseKind) -> CRef {
         let clause = match self.simplify_clause(clause) {
             Some(clause) => clause,
             None => return CREF_NONE,
@@ -386,7 +386,7 @@ impl Frame {
 }
 
 pub struct GipSAT {
-    model: Rc<Model>,
+    model: Rc<Transys>,
     pub frame: Frame,
     pub solvers: Vec<Solver>,
     tmp_lit_set: LitSet,
@@ -394,7 +394,7 @@ pub struct GipSAT {
 }
 
 impl GipSAT {
-    pub fn new(model: Model) -> Self {
+    pub fn new(model: Transys) -> Self {
         let mut tmp_lit_set = LitSet::new();
         tmp_lit_set.reserve(model.max_latch);
         Self {

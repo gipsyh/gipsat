@@ -1,7 +1,7 @@
 use crate::search::Value;
 use logic_form::{Var, VarSet};
 use std::{rc::Rc, slice};
-use transys::Model;
+use transys::Transys;
 
 #[derive(Default)]
 pub struct Domain {
@@ -15,7 +15,7 @@ impl Domain {
         self.local.reserve(var);
     }
 
-    pub fn get_coi(&mut self, root: impl Iterator<Item = Var>, ts: &Rc<Model>, value: &Value) {
+    pub fn get_coi(&mut self, root: impl Iterator<Item = Var>, ts: &Rc<Transys>, value: &Value) {
         for r in root {
             if value.v(r.lit()).is_none() {
                 self.local.insert(r);
@@ -36,7 +36,7 @@ impl Domain {
     pub fn enable_local(
         &mut self,
         domain: impl Iterator<Item = Var>,
-        ts: &Rc<Model>,
+        ts: &Rc<Transys>,
         value: &Value,
     ) {
         self.local.clear();
