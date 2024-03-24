@@ -402,21 +402,6 @@ impl Solver {
         self.cdb.learnt = self.simplify_clauses(learnt);
         let trans = take(&mut self.cdb.trans);
         self.cdb.trans = self.simplify_clauses(trans);
-        // for i in self.id..self.frame.len() {
-        //     for l in self.frame[i].iter() {
-        //         if l.cref[self.id] != CREF_NONE {
-        //             let mut j = 2;
-        //             let mut cls = self.cdb.get(l.cref[self.id]);
-        //             while j < cls.len() {
-        //                 if self.value.v(cls[j]).is_false() {
-        //                     cls.swap_remove(j);
-        //                     continue;
-        //                 }
-        //                 j += 1;
-        //             }
-        //         }
-        //     }
-        // }
         self.garbage_collect();
     }
 
@@ -431,11 +416,13 @@ impl Solver {
                 }
             }
 
-            for i in self.id..self.frame.len() {
-                for l in self.frame[i].iter_mut() {
-                    let cref = l.get_cref(self.id);
-                    if cref != CREF_NONE {
-                        l.set_cref(self.id, self.cdb.allocator.reloc(cref, &mut to));
+            if let Some(id) = self.id {
+                for i in id..self.frame.len() {
+                    for l in self.frame[i].iter_mut() {
+                        let cref = l.get_cref(id);
+                        if cref != CREF_NONE {
+                            l.set_cref(id, self.cdb.allocator.reloc(cref, &mut to));
+                        }
                     }
                 }
             }

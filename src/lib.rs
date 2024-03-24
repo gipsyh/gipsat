@@ -32,7 +32,7 @@ use transys::Transys;
 use vsids::Vsids;
 
 pub struct Solver {
-    id: usize,
+    id: Option<usize>,
     cdb: ClauseDB,
     watchers: Watchers,
     value: Value,
@@ -59,7 +59,7 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new(id: usize, ts: &Rc<Transys>, frame: &Frame) -> Self {
+    pub fn new(id: Option<usize>, ts: &Rc<Transys>, frame: &Frame) -> Self {
         let mut solver = Self {
             id,
             ts: ts.clone(),
@@ -397,13 +397,15 @@ pub struct GipSAT {
 }
 
 impl GipSAT {
-    pub fn new(model: Transys) -> Self {
+    pub fn new(ts: Transys) -> Self {
+        let ts = Rc::new(ts);
         let mut tmp_lit_set = LitSet::new();
-        tmp_lit_set.reserve(model.max_latch);
-        let lift = Lift::new(&model);
+        tmp_lit_set.reserve(ts.max_latch);
+        let frame = Default::default();
+        let lift = Lift::new(&ts, &frame);
         Self {
-            ts: Rc::new(model),
-            frame: Default::default(),
+            ts,
+            frame,
             solvers: Default::default(),
             lift,
             tmp_lit_set,
@@ -419,7 +421,7 @@ impl GipSAT {
     #[inline]
     pub fn new_frame(&mut self) {
         self.solvers
-            .push(Solver::new(self.frame.len(), &self.ts, &self.frame));
+            .push(Solver::new(Some(self.frame.len()), &self.ts, &self.frame));
         self.frame.push(Vec::new());
     }
 
