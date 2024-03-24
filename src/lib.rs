@@ -3,6 +3,7 @@
 mod analyze;
 mod cdb;
 mod domain;
+mod lift;
 mod propagate;
 mod search;
 mod simplify;
@@ -15,6 +16,7 @@ use analyze::Analyze;
 use cdb::{CRef, ClauseDB, ClauseKind, CREF_NONE};
 use domain::Domain;
 use giputils::gvec::Gvec;
+use lift::Lift;
 use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
 use rand::{rngs::StdRng, SeedableRng};
@@ -386,9 +388,10 @@ impl Frame {
 }
 
 pub struct GipSAT {
-    model: Rc<Transys>,
+    ts: Rc<Transys>,
     pub frame: Frame,
     pub solvers: Vec<Solver>,
+    lift: Lift,
     tmp_lit_set: LitSet,
     early: usize,
 }
@@ -397,10 +400,12 @@ impl GipSAT {
     pub fn new(model: Transys) -> Self {
         let mut tmp_lit_set = LitSet::new();
         tmp_lit_set.reserve(model.max_latch);
+        let lift = Lift::new(&model);
         Self {
-            model: Rc::new(model),
+            ts: Rc::new(model),
             frame: Default::default(),
             solvers: Default::default(),
+            lift,
             tmp_lit_set,
             early: 1,
         }
@@ -414,7 +419,7 @@ impl GipSAT {
     #[inline]
     pub fn new_frame(&mut self) {
         self.solvers
-            .push(Solver::new(self.frame.len(), &self.model, &self.frame));
+            .push(Solver::new(self.frame.len(), &self.ts, &self.frame));
         self.frame.push(Vec::new());
     }
 
@@ -451,7 +456,7 @@ impl GipSAT {
         if self.trivial_contained(frame, &lemma) {
             return;
         }
-        assert!(!self.model.cube_subsume_init(lemma.cube()));
+        assert!(!self.ts.cube_subsume_init(lemma.cube()));
         let mut begin = None;
         'fl: for i in (1..=frame).rev() {
             let mut j = 0;
@@ -503,7 +508,7 @@ impl GipSAT {
         bucket: bool,
     ) -> BlockResult {
         let solver_idx = frame - 1;
-        let assumption = self.model.cube_next(cube);
+        let assumption = self.ts.cube_next(cube);
         let res = if strengthen {
             let constrain = !cube;
             self.solvers[solver_idx].solve_with_constrain(&assumption, constrain, bucket)
@@ -525,11 +530,11 @@ impl GipSAT {
             .solvers
             .last_mut()
             .unwrap()
-            .solve_with_domain(&self.model.bad, false)
+            .solve_with_domain(&self.ts.bad, false)
         {
             SatResult::Sat(sat) => Some(BlockResultNo {
                 sat,
-                assumption: self.model.bad.clone(),
+                assumption: self.ts.bad.clone(),
             }),
             SatResult::Unsat(_) => None,
         }
@@ -542,13 +547,13 @@ impl GipSAT {
                 ans.push(block.cube[i]);
             }
         }
-        if self.model.cube_subsume_init(&ans) {
+        if self.ts.cube_subsume_init(&ans) {
             ans = Cube::new();
             let new = *block
                 .cube
                 .iter()
                 .find(|l| {
-                    self.model
+                    self.ts
                         .init_map
                         .get(&l.var())
                         .is_some_and(|i| *i != l.polarity())
@@ -559,7 +564,7 @@ impl GipSAT {
                     ans.push(block.cube[i]);
                 }
             }
-            assert!(!self.model.cube_subsume_init(&ans));
+            assert!(!self.ts.cube_subsume_init(&ans));
         }
         ans
     }
