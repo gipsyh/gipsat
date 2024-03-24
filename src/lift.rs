@@ -19,7 +19,7 @@ impl Lift {
 }
 
 impl GipSAT {
-    pub fn minimal_predecessor(&mut self, unblock: BlockResultNo) -> Cube {
+    pub fn minimal_predecessor(&mut self, unblock: BlockResultNo, latchs: Cube) -> Cube {
         self.lift.num_act += 1;
         if self.lift.num_act > 1000 {
             self.lift = Lift::new(&self.ts)
@@ -37,16 +37,6 @@ impl GipSAT {
                 None => (),
             }
         }
-        let mut latchs = Cube::new();
-        for latch in self.ts.latchs.iter() {
-            let lit = latch.lit();
-            match unblock.sat.lit_value(lit) {
-                Some(true) => latchs.push(lit),
-                Some(false) => latchs.push(!lit),
-                None => (),
-            }
-        }
-        // self.activity.sort_by_activity(&mut latchs, false);
         assumption.extend_from_slice(&latchs);
         let res: Cube = match self.lift.solver.solve(&assumption) {
             SatResult::Sat(_) => panic!(),
