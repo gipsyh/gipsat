@@ -2,6 +2,7 @@
 
 mod analyze;
 mod cdb;
+mod cif;
 mod domain;
 mod lift;
 mod propagate;
