@@ -1,6 +1,6 @@
 use crate::{cdb::CREF_NONE, utils::Lbool, Solver};
 use giputils::{gvec::Gvec, OptionU32, OptionU8};
-use logic_form::{Lit, Var, VarMap};
+use logic_form::{Cube, Lit, Var, VarMap};
 use rand::Rng;
 use std::{
     mem::swap,
@@ -465,6 +465,14 @@ impl Activity {
                 break;
             }
             now -= 1;
+        }
+    }
+
+    pub fn sort_by_activity(&self, cube: &mut Cube, ascending: bool) {
+        if ascending {
+            cube.sort_by(|a, b| self.activity[*a].partial_cmp(&self.activity[*b]).unwrap());
+        } else {
+            cube.sort_by(|a, b| self.activity[*b].partial_cmp(&self.activity[*a]).unwrap());
         }
     }
 

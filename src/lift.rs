@@ -16,7 +16,7 @@ impl Lift {
 }
 
 impl GipSAT {
-    pub fn minimal_predecessor(&mut self, unblock: BlockResultNo, latchs: Cube) -> Cube {
+    pub fn minimal_predecessor(&mut self, unblock: BlockResultNo) -> Cube {
         let mut assumption = Cube::new();
         let cls = !&unblock.assumption;
         for input in self.ts.inputs.iter() {
@@ -27,6 +27,17 @@ impl GipSAT {
                 None => (),
             }
         }
+        let mut latchs = Cube::new();
+        for latch in self.ts.latchs.iter() {
+            let lit = latch.lit();
+            match unblock.sat.lit_value(lit) {
+                Some(true) => latchs.push(lit),
+                Some(false) => latchs.push(!lit),
+                None => (),
+            }
+        }
+        let solver = unsafe { &*unblock.sat.solver };
+        solver.vsids.activity.sort_by_activity(&mut latchs, false);
         assumption.extend_from_slice(&latchs);
         let res: Cube = match self
             .lift
