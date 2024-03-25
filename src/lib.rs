@@ -420,7 +420,7 @@ impl GipSAT {
     }
 
     #[inline]
-    pub fn new_frame(&mut self) {
+    pub fn extend(&mut self) {
         self.solvers
             .push(Solver::new(Some(self.frame.len()), &self.ts, &self.frame));
         self.frame.push(Vec::new());

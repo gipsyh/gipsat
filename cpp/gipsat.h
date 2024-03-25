@@ -5,7 +5,11 @@
 extern "C" {
 void *gipsat_new(const void *);
 
-void drop_gipsat(void *);
+void gipsat_drop(void *);
+
+void gipsat_extend(void *);
+
+int gipsat_propagate(void *);
 }
 
 class GipSAT {
@@ -17,7 +21,17 @@ class GipSAT {
 
 	~GipSAT()
 	{
-		drop_gipsat(ptr);
+		gipsat_drop(ptr);
+	}
+
+	void extend()
+	{
+		gipsat_extend(ptr);
+	}
+
+	bool propagate()
+	{
+		return gipsat_propagate(ptr) == 1;
 	}
 
     private:
