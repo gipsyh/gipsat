@@ -2,24 +2,24 @@
 
 #include "transys.h"
 
-// extern "C" {
-// void *transys_from_aig(const char *);
+extern "C" {
+void *gipsat_new(const void *);
 
-// void drop_transys(void *);
-// }
+void drop_gipsat(void *);
+}
 
-// class GipSAT {
-//     public:
-// 	GipSAT(const char *aig)
-// 	{
-// 		ptr = transys_from_aig(aig);
-// 	}
+class GipSAT {
+    public:
+	GipSAT(Transys &transys)
+	{
+		ptr = gipsat_new(transys.ptr);
+	}
 
-// 	~Transys()
-// 	{
-// 		drop_transys(ptr);
-// 	}
+	~GipSAT()
+	{
+		drop_gipsat(ptr);
+	}
 
-//     private:
-// 	void *ptr;
-// };
+    private:
+	void *ptr;
+};
