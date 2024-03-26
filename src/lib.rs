@@ -1,4 +1,4 @@
-#![feature(get_mut_unchecked)]
+#![feature(get_mut_unchecked, c_size_t)]
 
 mod analyze;
 mod cdb;
@@ -528,17 +528,20 @@ impl GipSAT {
         }
     }
 
-    pub fn get_bad(&mut self) -> Option<BlockResultNo> {
+    pub fn get_bad(&mut self) -> Option<Cube> {
         match self
             .solvers
             .last_mut()
             .unwrap()
             .solve_with_domain(&self.ts.bad, false)
         {
-            SatResult::Sat(sat) => Some(BlockResultNo {
-                sat,
-                assumption: self.ts.bad.clone(),
-            }),
+            SatResult::Sat(sat) => {
+                let unblock = BlockResultNo {
+                    sat,
+                    assumption: self.ts.bad.clone(),
+                };
+                Some(self.minimal_predecessor(unblock))
+            }
             SatResult::Unsat(_) => None,
         }
     }

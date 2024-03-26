@@ -4,7 +4,8 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/../transys/cpp"
+                "${workspaceFolder}/../transys/cpp",
+                "${workspaceFolder}/../giputils/cpp"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",

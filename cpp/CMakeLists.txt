@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../transys/cpp)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../giputils/cpp)
 add_library(GipSAT STATIC gipsat.c)
 
 add_custom_target(
