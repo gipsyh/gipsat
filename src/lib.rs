@@ -425,6 +425,11 @@ impl GipSAT {
         self.solvers
             .push(Solver::new(Some(self.frame.len()), &self.ts, &self.frame));
         self.frame.push(Vec::new());
+        if self.level() == 0 {
+            for cube in self.ts.inits() {
+                self.add_lemma(0, cube)
+            }
+        }
     }
 
     #[inline]

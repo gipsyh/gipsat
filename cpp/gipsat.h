@@ -22,7 +22,7 @@ class RustVec gipsat_get_predecessor(void *);
 
 int gipsat_propagate(void *);
 
-class RustVec gipsat_has_bad(void *);
+bool gipsat_has_bad(void *);
 }
 
 class GipSAT {
