@@ -52,9 +52,9 @@ class GipSAT {
 		gipsat_add_lemma(ptr, frame, cube.data(), cube.size());
 	}
 
-	bool inductive(uint frame, std::vector<uint> &cube, bool strengthen, bool bucket)
+	bool inductive(uint frame, std::vector<uint> &cube, bool strengthen)
 	{
-		return gipsat_inductive(ptr, frame, cube.data(), cube.size(), strengthen, bucket) == 1;
+		return gipsat_inductive(ptr, frame, cube.data(), cube.size(), strengthen) == 1;
 	}
 
 	std::vector<uint> inductive_core()

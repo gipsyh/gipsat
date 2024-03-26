@@ -509,20 +509,14 @@ impl GipSAT {
         self.early = self.early.min(begin);
     }
 
-    pub fn inductive(
-        &mut self,
-        frame: usize,
-        cube: &[Lit],
-        strengthen: bool,
-        bucket: bool,
-    ) -> bool {
+    pub fn inductive(&mut self, frame: usize, cube: &[Lit], strengthen: bool) -> bool {
         let solver_idx = frame - 1;
         let assumption = self.ts.cube_next(cube);
         let res = if strengthen {
             let constrain = Clause::from_iter(cube.iter().map(|l| !*l));
-            self.solvers[solver_idx].solve_with_constrain(&assumption, constrain, bucket)
+            self.solvers[solver_idx].solve_with_constrain(&assumption, constrain, true)
         } else {
-            self.solvers[solver_idx].solve_with_domain(&assumption, bucket)
+            self.solvers[solver_idx].solve_with_domain(&assumption, true)
         };
         self.last_ind = Some(match res {
             SatResult::Sat(sat) => BlockResult::No(BlockResultNo { sat, assumption }),
@@ -612,7 +606,7 @@ impl GipSAT {
                 if self.frame[frame_idx].iter().all(|l| l.lemma != lemma.lemma) {
                     continue;
                 }
-                if self.inductive(frame_idx + 1, &lemma, false, true) {
+                if self.inductive(frame_idx + 1, &lemma, false) {
                     let core = self.inductive_core();
                     self.add_lemma(frame_idx + 1, core);
                 }

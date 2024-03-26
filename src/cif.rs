@@ -62,11 +62,10 @@ pub extern "C" fn gipsat_inductive(
     cube_ptr: *const c_uint,
     cube_len: c_uint,
     strengthen: c_int,
-    bucket: c_int,
 ) -> c_int {
     let cube = unsafe { from_raw_parts(cube_ptr as *const Lit, cube_len as _) };
     let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
-    gipsat.inductive(frame as _, cube, strengthen == 1, bucket == 1) as _
+    gipsat.inductive(frame as _, cube, strengthen == 1) as _
 }
 
 #[no_mangle]
