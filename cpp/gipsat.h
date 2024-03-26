@@ -16,7 +16,7 @@ void gipsat_add_lemma(void *, uint, uint *, uint);
 
 int gipsat_propagate(void *);
 
-class RustVec *gipsat_get_bad(void *);
+class RustVec gipsat_get_bad(void *);
 }
 
 class GipSAT {
@@ -55,7 +55,7 @@ class GipSAT {
 	{
 		RustVec rv = gipsat_get_bad(ptr);
 		std::vector<uint> res;
-		uint *data = rv.data();
+		uint *data = (uint *)rv.data();
 		for (int i = 0; i < rv.size(); ++i) {
 			res.push_back(*(data + i));
 		}

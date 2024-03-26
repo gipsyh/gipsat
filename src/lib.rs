@@ -4,7 +4,6 @@ mod analyze;
 mod cdb;
 mod cif;
 mod domain;
-mod lift;
 mod propagate;
 mod search;
 mod simplify;
@@ -17,7 +16,6 @@ use analyze::Analyze;
 use cdb::{CRef, ClauseDB, ClauseKind, CREF_NONE};
 use domain::Domain;
 use giputils::gvec::Gvec;
-use lift::Lift;
 use logic_form::{Clause, Cube, Lit, LitSet, Var, VarMap};
 use propagate::Watchers;
 use rand::{rngs::StdRng, SeedableRng};
@@ -26,6 +24,7 @@ use search::Value;
 use simplify::Simplify;
 use statistic::Statistic;
 use std::{
+    mem::take,
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -392,9 +391,10 @@ pub struct GipSAT {
     ts: Rc<Transys>,
     pub frame: Frame,
     pub solvers: Vec<Solver>,
-    lift: Lift,
+    lift: Solver,
     tmp_lit_set: LitSet,
     early: usize,
+    last_ind: Option<BlockResult>,
 }
 
 impl GipSAT {
@@ -403,7 +403,7 @@ impl GipSAT {
         let mut tmp_lit_set = LitSet::new();
         tmp_lit_set.reserve(ts.max_latch);
         let frame = Default::default();
-        let lift = Lift::new(&ts, &frame);
+        let lift = Solver::new(None, &ts, &frame);
         Self {
             ts,
             frame,
@@ -411,6 +411,7 @@ impl GipSAT {
             lift,
             tmp_lit_set,
             early: 1,
+            last_ind: None,
         }
     }
 
@@ -503,13 +504,7 @@ impl GipSAT {
         self.early = self.early.min(begin);
     }
 
-    pub fn blocked(
-        &mut self,
-        frame: usize,
-        cube: &Cube,
-        strengthen: bool,
-        bucket: bool,
-    ) -> BlockResult {
+    pub fn inductive(&mut self, frame: usize, cube: &Cube, strengthen: bool, bucket: bool) -> bool {
         let solver_idx = frame - 1;
         let assumption = self.ts.cube_next(cube);
         let res = if strengthen {
@@ -518,35 +513,23 @@ impl GipSAT {
         } else {
             self.solvers[solver_idx].solve_with_domain(&assumption, bucket)
         };
-        match res {
+        self.last_ind = Some(match res {
             SatResult::Sat(sat) => BlockResult::No(BlockResultNo { sat, assumption }),
             SatResult::Unsat(unsat) => BlockResult::Yes(BlockResultYes {
                 unsat,
                 cube: cube.clone(),
                 assumption,
             }),
-        }
+        });
+        matches!(self.last_ind.as_ref().unwrap(), BlockResult::Yes(_))
     }
 
-    pub fn get_bad(&mut self) -> Option<Cube> {
-        match self
-            .solvers
-            .last_mut()
-            .unwrap()
-            .solve_with_domain(&self.ts.bad, false)
-        {
-            SatResult::Sat(sat) => {
-                let unblock = BlockResultNo {
-                    sat,
-                    assumption: self.ts.bad.clone(),
-                };
-                Some(self.minimal_predecessor(unblock))
-            }
-            SatResult::Unsat(_) => None,
-        }
-    }
-
-    pub fn blocked_conflict(&mut self, block: BlockResultYes) -> Cube {
+    pub fn inductive_core(&mut self) -> Cube {
+        let last_ind = take(&mut self.last_ind);
+        let block = match last_ind.unwrap() {
+            BlockResult::Yes(block) => block,
+            BlockResult::No(_) => panic!(),
+        };
         let mut ans = Cube::new();
         for i in 0..block.cube.len() {
             if block.unsat.has(block.assumption[i]) {
@@ -575,6 +558,41 @@ impl GipSAT {
         ans
     }
 
+    pub fn get_predecessor(&mut self) -> Cube {
+        let last_ind = take(&mut self.last_ind);
+        let unblock = match last_ind.unwrap() {
+            BlockResult::Yes(_) => panic!(),
+            BlockResult::No(unblock) => unblock,
+        };
+        let mut assumption = Cube::new();
+        let cls = !&unblock.assumption;
+        for input in self.ts.inputs.iter() {
+            let lit = input.lit();
+            match unblock.sat.lit_value(lit) {
+                Some(true) => assumption.push(lit),
+                Some(false) => assumption.push(!lit),
+                None => (),
+            }
+        }
+        let mut latchs = Cube::new();
+        for latch in self.ts.latchs.iter() {
+            let lit = latch.lit();
+            match unblock.sat.lit_value(lit) {
+                Some(true) => latchs.push(lit),
+                Some(false) => latchs.push(!lit),
+                None => (),
+            }
+        }
+        let solver = unsafe { &*unblock.sat.solver };
+        solver.vsids.activity.sort_by_activity(&mut latchs, false);
+        assumption.extend_from_slice(&latchs);
+        let res: Cube = match self.lift.solve_with_constrain(&assumption, cls, false) {
+            SatResult::Sat(_) => panic!(),
+            SatResult::Unsat(conflict) => latchs.into_iter().filter(|l| conflict.has(*l)).collect(),
+        };
+        res
+    }
+
     pub fn propagate(&mut self) -> bool {
         for frame_idx in self.early..self.level() {
             self.frame[frame_idx].sort_by_key(|x| x.len());
@@ -583,12 +601,9 @@ impl GipSAT {
                 if self.frame[frame_idx].iter().all(|l| l.lemma != lemma.lemma) {
                     continue;
                 }
-                match self.blocked(frame_idx + 1, &lemma, false, true) {
-                    BlockResult::Yes(blocked) => {
-                        let conflict = self.blocked_conflict(blocked);
-                        self.add_lemma(frame_idx + 1, conflict);
-                    }
-                    BlockResult::No(_) => {}
+                if self.inductive(frame_idx + 1, &lemma, false, true) {
+                    let core = self.inductive_core();
+                    self.add_lemma(frame_idx + 1, core);
                 }
             }
             if self.frame[frame_idx].is_empty() {
@@ -597,6 +612,24 @@ impl GipSAT {
         }
         self.early = self.level();
         false
+    }
+
+    pub fn get_bad(&mut self) -> Option<Cube> {
+        match self
+            .solvers
+            .last_mut()
+            .unwrap()
+            .solve_with_domain(&self.ts.bad, false)
+        {
+            SatResult::Sat(sat) => {
+                self.last_ind = Some(BlockResult::No(BlockResultNo {
+                    sat,
+                    assumption: self.ts.bad.clone(),
+                }));
+                Some(self.get_predecessor())
+            }
+            SatResult::Unsat(_) => None,
+        }
     }
 
     pub fn statistic(&self) {

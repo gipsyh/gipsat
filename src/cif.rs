@@ -54,6 +54,12 @@ pub extern "C" fn gipsat_add_lemma(
     gipsat.add_lemma(frame as _, lemma)
 }
 
+// #[no_mangle]
+// pub extern "C" fn gipsat_inductive(gipsat: *mut c_void) -> c_int {
+//     let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
+//     gipsat. as _
+// }
+
 #[no_mangle]
 pub extern "C" fn gipsat_propagate(gipsat: *mut c_void) -> c_int {
     let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
