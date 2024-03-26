@@ -14,7 +14,7 @@ void gipsat_extend(void *);
 
 void gipsat_add_lemma(void *, uint, uint *, uint);
 
-int gipsat_inductive(void *, uint, uint *, uint, int, int);
+int gipsat_inductive(void *, uint, uint *, uint, int);
 
 class RustVec gipsat_inductive_core(void *);
 
@@ -23,6 +23,10 @@ class RustVec gipsat_get_predecessor(void *);
 int gipsat_propagate(void *);
 
 bool gipsat_has_bad(void *);
+
+void gipsat_set_domain(void *, int, uint *, uint);
+
+void gipsat_unset_domain(void *, int);
 }
 
 class GipSAT {
@@ -87,6 +91,16 @@ class GipSAT {
 	bool has_bad()
 	{
 		return gipsat_has_bad(ptr) == 1;
+	}
+
+	void set_domain(uint frame, std::vector<uint> &d)
+	{
+		gipsat_set_domain(ptr, frame, d.data(), d.size());
+	}
+
+	void unset_domain(uint frame)
+	{
+		gipsat_unset_domain(ptr, frame);
 	}
 
     private:

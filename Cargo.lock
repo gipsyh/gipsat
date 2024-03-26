@@ -155,7 +155,6 @@ dependencies = [
  "clap",
  "giputils",
  "logic-form",
- "minisat",
  "rand",
  "satif",
  "transys",

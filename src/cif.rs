@@ -93,3 +93,21 @@ pub extern "C" fn gipsat_has_bad(gipsat: *mut c_void) -> c_int {
     let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
     gipsat.has_bad() as _
 }
+
+#[no_mangle]
+pub extern "C" fn gipsat_set_domain(
+    gipsat: *mut c_void,
+    frame: c_int,
+    d_ptr: *const c_uint,
+    d_len: c_uint,
+) {
+    let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
+    let d = unsafe { from_raw_parts(d_ptr as *const Lit, d_len as _) };
+    gipsat.set_domain(frame as _, d.iter().copied())
+}
+
+#[no_mangle]
+pub extern "C" fn gipsat_unset_domain(gipsat: *mut c_void, frame: c_int) {
+    let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
+    gipsat.unset_domain(frame as _);
+}

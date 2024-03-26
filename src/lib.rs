@@ -390,7 +390,7 @@ impl Frame {
 pub struct GipSAT {
     ts: Rc<Transys>,
     pub frame: Frame,
-    pub solvers: Vec<Solver>,
+    solvers: Vec<Solver>,
     lift: Solver,
     tmp_lit_set: LitSet,
     early: usize,
@@ -635,6 +635,14 @@ impl GipSAT {
             }
             SatResult::Unsat(_) => false,
         }
+    }
+
+    pub fn set_domain(&mut self, frame: usize, domain: impl Iterator<Item = Lit>) {
+        self.solvers[frame].set_domain(domain)
+    }
+
+    pub fn unset_domain(&mut self, frame: usize) {
+        self.solvers[frame].unset_domain()
     }
 
     pub fn statistic(&self) {

@@ -15,7 +15,6 @@ giputils = { path = "../giputils" }
 satif = { path = "../satif" }
 transys = { path = "../transys" }
 rand = "0.8.5"
-minisat = { path = "../minisat-rs" }
 
 [features]
 no_bound_check = ["logic-form/no_bound_check", "giputils/no_bound_check"]
