@@ -4,8 +4,9 @@ use giputils::crffi::RustVec;
 use logic_form::{Cube, Lit};
 use std::{
     ffi::{c_int, c_uint},
-    mem::{forget, transmute},
+    mem::forget,
     os::raw::c_void,
+    slice::from_raw_parts,
 };
 use transys::Transys;
 
@@ -54,11 +55,33 @@ pub extern "C" fn gipsat_add_lemma(
     gipsat.add_lemma(frame as _, lemma)
 }
 
-// #[no_mangle]
-// pub extern "C" fn gipsat_inductive(gipsat: *mut c_void) -> c_int {
-//     let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
-//     gipsat. as _
-// }
+#[no_mangle]
+pub extern "C" fn gipsat_inductive(
+    gipsat: *mut c_void,
+    frame: c_uint,
+    cube_ptr: *const c_uint,
+    cube_len: c_uint,
+    strengthen: c_int,
+    bucket: c_int,
+) -> c_int {
+    let cube = unsafe { from_raw_parts(cube_ptr as *const Lit, cube_len as _) };
+    let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
+    gipsat.inductive(frame as _, cube, strengthen == 1, bucket == 1) as _
+}
+
+#[no_mangle]
+pub extern "C" fn gipsat_inductive_core(gipsat: *mut c_void) -> RustVec {
+    let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
+    let core: Vec<Lit> = gipsat.inductive_core().into();
+    RustVec::new(core)
+}
+
+#[no_mangle]
+pub extern "C" fn gipsat_get_predecessor(gipsat: *mut c_void) -> RustVec {
+    let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
+    let core: Vec<Lit> = gipsat.get_predecessor().into();
+    RustVec::new(core)
+}
 
 #[no_mangle]
 pub extern "C" fn gipsat_propagate(gipsat: *mut c_void) -> c_int {
@@ -67,14 +90,7 @@ pub extern "C" fn gipsat_propagate(gipsat: *mut c_void) -> c_int {
 }
 
 #[no_mangle]
-pub extern "C" fn gipsat_get_bad(gipsat: *mut c_void) -> RustVec {
+pub extern "C" fn gipsat_has_bad(gipsat: *mut c_void) -> c_int {
     let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
-    match gipsat.get_bad() {
-        Some(bad) => {
-            assert!(!bad.is_empty());
-            let bad: Vec<Lit> = unsafe { transmute(bad) };
-            RustVec::new(bad)
-        }
-        None => RustVec::new(Vec::<Lit>::new()),
-    }
+    gipsat.has_bad() as _
 }

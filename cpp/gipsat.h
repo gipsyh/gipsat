@@ -14,9 +14,15 @@ void gipsat_extend(void *);
 
 void gipsat_add_lemma(void *, uint, uint *, uint);
 
+int gipsat_inductive(void *, uint, uint *, uint, int, int);
+
+class RustVec gipsat_inductive_core(void *);
+
+class RustVec gipsat_get_predecessor(void *);
+
 int gipsat_propagate(void *);
 
-class RustVec gipsat_get_bad(void *);
+class RustVec gipsat_has_bad(void *);
 }
 
 class GipSAT {
@@ -46,20 +52,41 @@ class GipSAT {
 		gipsat_add_lemma(ptr, frame, cube.data(), cube.size());
 	}
 
-	bool propagate()
+	bool inductive(uint frame, std::vector<uint> &cube, bool strengthen, bool bucket)
 	{
-		return gipsat_propagate(ptr) == 1;
+		return gipsat_inductive(ptr, frame, cube.data(), cube.size(), strengthen, bucket) == 1;
 	}
 
-	std::vector<uint> get_bad()
+	std::vector<uint> inductive_core()
 	{
-		RustVec rv = gipsat_get_bad(ptr);
+		RustVec rv = gipsat_inductive_core(ptr);
 		std::vector<uint> res;
 		uint *data = (uint *)rv.data();
 		for (int i = 0; i < rv.size(); ++i) {
 			res.push_back(*(data + i));
 		}
 		return res;
+	}
+
+	std::vector<uint> get_predecessor()
+	{
+		RustVec rv = gipsat_get_predecessor(ptr);
+		std::vector<uint> res;
+		uint *data = (uint *)rv.data();
+		for (int i = 0; i < rv.size(); ++i) {
+			res.push_back(*(data + i));
+		}
+		return res;
+	}
+
+	bool propagate()
+	{
+		return gipsat_propagate(ptr) == 1;
+	}
+
+	bool has_bad()
+	{
+		return gipsat_has_bad(ptr) == 1;
 	}
 
     private:

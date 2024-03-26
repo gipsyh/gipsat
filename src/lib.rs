@@ -504,11 +504,17 @@ impl GipSAT {
         self.early = self.early.min(begin);
     }
 
-    pub fn inductive(&mut self, frame: usize, cube: &Cube, strengthen: bool, bucket: bool) -> bool {
+    pub fn inductive(
+        &mut self,
+        frame: usize,
+        cube: &[Lit],
+        strengthen: bool,
+        bucket: bool,
+    ) -> bool {
         let solver_idx = frame - 1;
         let assumption = self.ts.cube_next(cube);
         let res = if strengthen {
-            let constrain = !cube;
+            let constrain = Clause::from_iter(cube.iter().map(|l| !*l));
             self.solvers[solver_idx].solve_with_constrain(&assumption, constrain, bucket)
         } else {
             self.solvers[solver_idx].solve_with_domain(&assumption, bucket)
@@ -517,7 +523,7 @@ impl GipSAT {
             SatResult::Sat(sat) => BlockResult::No(BlockResultNo { sat, assumption }),
             SatResult::Unsat(unsat) => BlockResult::Yes(BlockResultYes {
                 unsat,
-                cube: cube.clone(),
+                cube: Cube::from(cube),
                 assumption,
             }),
         });
@@ -614,7 +620,7 @@ impl GipSAT {
         false
     }
 
-    pub fn get_bad(&mut self) -> Option<Cube> {
+    pub fn has_bad(&mut self) -> bool {
         match self
             .solvers
             .last_mut()
@@ -626,9 +632,9 @@ impl GipSAT {
                     sat,
                     assumption: self.ts.bad.clone(),
                 }));
-                Some(self.get_predecessor())
+                true
             }
-            SatResult::Unsat(_) => None,
+            SatResult::Unsat(_) => false,
         }
     }
 
