@@ -8,7 +8,7 @@ name = "gipsat"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
-logic-form = { path = "../logic-form"}
+logic-form = { path = "../logic-form" }
 clap = { version = "4.3.0", features = ["derive"] }
 bitfield-struct = "0.5.6"
 giputils = { path = "../giputils" }
@@ -17,4 +17,8 @@ transys = { path = "../transys" }
 rand = "0.8.5"
 
 [features]
-no_bound_check = ["logic-form/no_bound_check", "giputils/no_bound_check"]
+no_bound_check = [
+    "logic-form/no_bound_check",
+    "giputils/no_bound_check",
+    "transys/no_bound_check",
+]
