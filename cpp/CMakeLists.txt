@@ -9,7 +9,7 @@ add_library(GipSAT STATIC gipsat.c)
 
 add_custom_target(
     libgipsat
-    COMMAND cargo build --release
+    COMMAND cargo build --release --features no_bound_check
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../src/*.rs
 )
