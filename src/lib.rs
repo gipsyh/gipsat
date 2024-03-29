@@ -210,6 +210,7 @@ impl Solver {
                 }
             }
         }
+        self.statistic.avg_decide_var += self.domain.domains().len() as f64 / self.ts.num_var as f64
     }
 
     pub fn solve_with_domain(&mut self, assumption: &[Lit], bucket: bool) -> SatResult<Sat, Unsat> {
@@ -650,5 +651,10 @@ impl GipSAT {
             print!("{} ", f.len());
         }
         println!();
+        let mut statistic = Statistic::default();
+        for s in self.solvers.iter() {
+            statistic = statistic + s.statistic;
+        }
+        dbg!(statistic);
     }
 }
