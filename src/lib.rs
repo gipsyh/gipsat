@@ -22,11 +22,12 @@ use rand::{rngs::StdRng, SeedableRng};
 use satif::{SatResult, SatifSat, SatifUnsat};
 use search::Value;
 use simplify::Simplify;
-use statistic::Statistic;
+use statistic::{GipSATStatistic, SolverStatistic};
 use std::{
     mem::take,
     ops::{Deref, DerefMut},
     rc::Rc,
+    time::Instant,
 };
 use transys::Transys;
 use vsids::Vsids;
@@ -55,7 +56,7 @@ pub struct Solver {
     frame: Frame,
 
     rng: StdRng,
-    statistic: Statistic,
+    statistic: SolverStatistic,
 }
 
 impl Solver {
@@ -210,7 +211,8 @@ impl Solver {
                 }
             }
         }
-        self.statistic.avg_decide_var += self.domain.domains().len() as f64 / self.ts.num_var as f64
+        self.statistic.avg_decide_var += self.domain.domains().len() as f64
+            / (self.ts.num_var - self.trail.len() as usize) as f64
     }
 
     pub fn solve_with_domain(&mut self, assumption: &[Lit], bucket: bool) -> SatResult<Sat, Unsat> {
@@ -396,6 +398,7 @@ pub struct GipSAT {
     tmp_lit_set: LitSet,
     early: usize,
     last_ind: Option<BlockResult>,
+    statistic: GipSATStatistic,
 }
 
 impl GipSAT {
@@ -413,6 +416,7 @@ impl GipSAT {
             tmp_lit_set,
             early: 1,
             last_ind: None,
+            statistic: Default::default(),
         }
     }
 
@@ -511,6 +515,8 @@ impl GipSAT {
     }
 
     pub fn inductive(&mut self, frame: usize, cube: &[Lit], strengthen: bool) -> bool {
+        let start = Instant::now();
+        self.statistic.num_sat += 1;
         let solver_idx = frame - 1;
         let assumption = self.ts.cube_next(cube);
         let res = if strengthen {
@@ -527,6 +533,7 @@ impl GipSAT {
                 assumption,
             }),
         });
+        self.statistic.avg_sat_time += start.elapsed();
         matches!(self.last_ind.as_ref().unwrap(), BlockResult::Yes(_))
     }
 
@@ -621,7 +628,9 @@ impl GipSAT {
     }
 
     pub fn has_bad(&mut self) -> bool {
-        match self
+        let start = Instant::now();
+        self.statistic.num_sat += 1;
+        let res = match self
             .solvers
             .last_mut()
             .unwrap()
@@ -635,7 +644,9 @@ impl GipSAT {
                 true
             }
             SatResult::Unsat(_) => false,
-        }
+        };
+        self.statistic.avg_sat_time += start.elapsed();
+        res
     }
 
     pub fn set_domain(&mut self, frame: usize, domain: impl Iterator<Item = Lit>) {
@@ -651,10 +662,11 @@ impl GipSAT {
             print!("{} ", f.len());
         }
         println!();
-        let mut statistic = Statistic::default();
+        let mut statistic = SolverStatistic::default();
         for s in self.solvers.iter() {
             statistic = statistic + s.statistic;
         }
-        dbg!(statistic);
+        println!("{:#?}", statistic);
+        println!("{:#?}", self.statistic);
     }
 }
