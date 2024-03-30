@@ -111,3 +111,9 @@ pub extern "C" fn gipsat_unset_domain(gipsat: *mut c_void, frame: c_int) {
     let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
     gipsat.unset_domain(frame as _);
 }
+
+#[no_mangle]
+pub extern "C" fn gipsat_statistic(gipsat: *mut c_void) {
+    let gipsat = unsafe { &mut *(gipsat as *mut GipSAT) };
+    gipsat.statistic()
+}

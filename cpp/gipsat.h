@@ -27,6 +27,8 @@ bool gipsat_has_bad(void *);
 void gipsat_set_domain(void *, int, uint *, uint);
 
 void gipsat_unset_domain(void *, int);
+
+void gipsat_statistic(void *);
 }
 
 class GipSAT {
@@ -101,6 +103,11 @@ class GipSAT {
 	void unset_domain(uint frame)
 	{
 		gipsat_unset_domain(ptr, frame);
+	}
+
+	void statistic()
+	{
+		gipsat_statistic(ptr);
 	}
 
     private:
