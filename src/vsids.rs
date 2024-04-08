@@ -327,43 +327,6 @@ impl IntervalHeap {
             }
         }
     }
-
-    // fn valid(&self, act: &mut Activity) {
-    //     let mut i = 0;
-    //     while i < self.heap.len() {
-    //         if i + 1 < self.len() {
-    //             assert!(act[self.heap[i]] <= act[self.heap[i]]);
-    //         }
-    //         let c1 = i * 2 + 2;
-    //         if c1 < self.len() {
-    //             assert!(act[self.heap[i]] <= act[self.heap[c1]]);
-    //         }
-    //         let c2 = i * 2 + 4;
-    //         if c2 < self.len() {
-    //             assert!(act[self.heap[i]] <= act[self.heap[c2]]);
-    //         }
-    //         i += 2;
-    //     }
-    //     let mut i = 1;
-    //     while i < self.heap.len() {
-    //         assert!(act[self.heap[i]] >= act[self.heap[i - 1]]);
-    //         let c1 = i * 2 + 1;
-    //         if c1 < self.len() {
-    //             assert!(act[self.heap[i]] >= act[self.heap[c1]]);
-    //         }
-    //         let c2 = i * 2 + 3;
-    //         if c2 < self.len() {
-    //             assert!(act[self.heap[i]] >= act[self.heap[c2]]);
-    //         }
-    //         i += 2;
-    //     }
-    // }
-
-    // pub fn print(&self, act: &mut Activity) {
-    //     for x in self.heap.iter() {
-    //         dbg!(*x, act[*x]);
-    //     }
-    // }
 }
 
 const NUM_BUCKET: u32 = 15;
@@ -475,36 +438,6 @@ impl Activity {
             cube.sort_by(|a, b| self.activity[*b].partial_cmp(&self.activity[*a]).unwrap());
         }
     }
-
-    // pub fn print(&self) {
-    //     dbg!("begin print");
-    //     for i in 0..NUM_BUCKET {
-    //         dbg!(i);
-    //         dbg!(self.bucket_heap[i].len());
-    //         if self.bucket_heap[i].len() > 0 {
-    //             let max = self.activity[self.bucket_heap[i].max().unwrap()];
-    //             let min = self.activity[self.bucket_heap[i].min().unwrap()];
-    //             dbg!(max);
-    //             dbg!(min);
-    //         }
-    //     }
-    //     dbg!("end");
-    // }
-
-    // pub fn valid(&self) {
-    //     let mut m = None;
-    //     for i in 0..NUM_BUCKET {
-    //         if self.bucket_heap[i].len() > 0 {
-    //             let max = self.activity[self.bucket_heap[i].max().unwrap()];
-    //             let min = self.activity[self.bucket_heap[i].min().unwrap()];
-    //             assert!(max >= min);
-    //             if let Some(m) = m {
-    //                 assert!(m >= max);
-    //             }
-    //             m = Some(min);
-    //         }
-    //     }
-    // }
 }
 
 impl Default for Activity {
