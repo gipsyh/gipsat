@@ -171,7 +171,7 @@ impl Solver {
     fn remove_lemma(&mut self, cref: CRef) {
         self.backtrack(0, false);
         self.clean_temporary();
-        if !self.locked(self.cdb.get(cref)) {
+        if !self.locked(cref) {
             self.remove_clause(cref)
         }
     }
