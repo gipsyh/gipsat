@@ -402,6 +402,7 @@ pub struct GipSAT {
 }
 
 impl GipSAT {
+    /// create a new GipSAT instance from a transition system
     pub fn new(ts: Transys) -> Self {
         let ts = Rc::new(ts);
         let mut tmp_lit_set = LitSet::new();
@@ -420,11 +421,13 @@ impl GipSAT {
         }
     }
 
+    /// get the highest level of GipSAT
     #[inline]
     pub fn level(&self) -> usize {
         self.frame.len() - 1
     }
 
+    /// extend with a new frame    
     #[inline]
     pub fn extend(&mut self) {
         self.solvers
@@ -454,6 +457,7 @@ impl GipSAT {
         false
     }
 
+    /// add a lemma to frame
     #[inline]
     pub fn add_lemma(&mut self, frame: usize, lemma: Cube) {
         let lemma = logic_form::Lemma::new(lemma);
@@ -514,6 +518,7 @@ impl GipSAT {
         self.early = self.early.min(begin);
     }
 
+    /// query whether the cube is inductively relative to the frame
     pub fn inductive(&mut self, frame: usize, cube: &[Lit], strengthen: bool) -> bool {
         let start = Instant::now();
         self.statistic.num_sat += 1;
@@ -537,6 +542,7 @@ impl GipSAT {
         matches!(self.last_ind.as_ref().unwrap(), BlockResult::Yes(_))
     }
 
+    /// get the inductive core
     pub fn inductive_core(&mut self) -> Cube {
         let last_ind = take(&mut self.last_ind);
         let block = match last_ind.unwrap() {
@@ -571,6 +577,7 @@ impl GipSAT {
         ans
     }
 
+    /// get the predecessor
     pub fn get_predecessor(&mut self) -> Cube {
         let last_ind = take(&mut self.last_ind);
         let unblock = match last_ind.unwrap() {
@@ -606,6 +613,7 @@ impl GipSAT {
         res
     }
 
+    /// perform the propagation.
     pub fn propagate(&mut self) -> bool {
         for frame_idx in self.early..self.level() {
             self.frame[frame_idx].sort_by_key(|x| x.len());
