@@ -49,7 +49,6 @@ pub struct Solver {
     unsat_core: LitSet,
     domain: Domain,
     temporary_domain: bool,
-    lazy_temporary: Vec<Clause>,
     constrain_act: Option<Lit>,
 
     ts: Rc<Transys>,
@@ -80,7 +79,6 @@ impl Solver {
             unsat_core: Default::default(),
             domain: Default::default(),
             temporary_domain: Default::default(),
-            lazy_temporary: Default::default(),
             statistic: Default::default(),
             constrain_act: None,
             rng: StdRng::seed_from_u64(0),
@@ -176,7 +174,12 @@ impl Solver {
         }
     }
 
-    fn new_round(&mut self, domain: Option<impl Iterator<Item = Var>>, bucket: bool) {
+    fn new_round(
+        &mut self,
+        domain: Option<impl Iterator<Item = Var>>,
+        constrain: Option<Clause>,
+        bucket: bool,
+    ) {
         self.backtrack(0, self.temporary_domain);
         self.clean_temporary();
         // dbg!(&self.name);
@@ -186,8 +189,12 @@ impl Solver {
         // dbg!(self.cdb.num_leanrt());
         // dbg!(self.cdb.num_lemma());
 
-        while let Some(lc) = self.lazy_temporary.pop() {
-            self.add_clause_inner(&lc, ClauseKind::Temporary);
+        if let Some(constrain) = constrain {
+            if let Some(constrain) = self.simplify_clause(&constrain) {
+                if constrain.len() > 1 {
+                    self.add_clause_inner(&constrain, ClauseKind::Temporary);
+                }
+            }
         }
 
         if !self.temporary_domain {
@@ -219,7 +226,7 @@ impl Solver {
         if self.temporary_domain {
             assert!(bucket);
         }
-        self.new_round(Some(assumption.iter().map(|l| l.var())), bucket);
+        self.new_round(Some(assumption.iter().map(|l| l.var())), None, bucket);
         self.statistic.num_solve += 1;
         self.clean_leanrt();
         self.simplify();
@@ -246,9 +253,9 @@ impl Solver {
         assumption.push(act);
         let cc = constrain.clone();
         constrain.push(!act);
-        self.lazy_temporary.push(constrain);
         self.new_round(
             Some(assump.iter().chain(cc.iter()).map(|l| l.var())),
+            Some(constrain),
             bucket,
         );
         self.statistic.num_solve += 1;
