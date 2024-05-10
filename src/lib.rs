@@ -525,6 +525,20 @@ impl GipSAT {
         self.early = self.early.min(begin);
     }
 
+    pub fn parent_lemma(&self, cube: &Cube, frame: usize) -> Vec<&logic_form::Lemma> {
+        let lemma = logic_form::Lemma::new(cube.clone());
+        let mut res = Vec::new();
+        if frame == 1 {
+            return res;
+        }
+        for c in self.frame[frame - 1].iter() {
+            if c.subsume(&lemma) {
+                res.push(&c.lemma);
+            }
+        }
+        res
+    }
+
     /// query whether the cube is inductively relative to the frame
     pub fn inductive(&mut self, frame: usize, cube: &[Lit], strengthen: bool) -> bool {
         let start = Instant::now();
