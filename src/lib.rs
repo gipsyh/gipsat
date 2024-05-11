@@ -222,16 +222,21 @@ impl Solver {
             / (self.ts.num_var - self.trail.len() as usize) as f64
     }
 
-    pub fn solve_with_domain(&mut self, assumption: &[Lit], bucket: bool) -> SatResult<Sat, Unsat> {
+    pub fn solve_with_domain(&mut self, assump: &[Lit], bucket: bool) -> SatResult<Sat, Unsat> {
         if self.temporary_domain {
             assert!(bucket);
         }
+        let mut assumption = Cube::new();
+        if self.id.is_some() {
+            assumption.extend_from_slice(&self.ts.constraints);
+        }
+        assumption.extend_from_slice(assump);
         self.new_round(Some(assumption.iter().map(|l| l.var())), None, bucket);
         self.statistic.num_solve += 1;
         self.clean_leanrt();
         self.simplify();
         self.garbage_collect();
-        self.search_with_restart(assumption)
+        self.search_with_restart(&assumption)
     }
 
     pub fn solve_with_constrain(
@@ -250,11 +255,20 @@ impl Solver {
         let act = self.constrain_act.unwrap();
         let mut assumption = Cube::new();
         assumption.extend_from_slice(assump);
+        if self.id.is_some() {
+            assumption.extend_from_slice(&self.ts.constraints);
+        }
         assumption.push(act);
         let cc = constrain.clone();
         constrain.push(!act);
         self.new_round(
-            Some(assump.iter().chain(cc.iter()).map(|l| l.var())),
+            Some(
+                assumption
+                    .iter()
+                    .chain(cc.iter())
+                    .map(|l| l.var())
+                    .filter(|v| *v != act.var()),
+            ),
             Some(constrain),
             bucket,
         );
@@ -266,11 +280,13 @@ impl Solver {
     }
 
     pub fn set_domain(&mut self, domain: impl Iterator<Item = Lit>) {
+        let mut domain: Vec<Lit> = domain.collect();
+        domain.extend_from_slice(&self.ts.constraints);
         self.temporary_domain = true;
         self.backtrack(0, false);
         self.clean_temporary();
         self.domain
-            .enable_local(domain.map(|l| l.var()), &self.ts, &self.value);
+            .enable_local(domain.iter().map(|l| l.var()), &self.ts, &self.value);
         assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
         self.domain.local.insert(self.constrain_act.unwrap().var());
         self.vsids.enable_bucket = true;
@@ -606,7 +622,9 @@ impl GipSAT {
             BlockResult::No(unblock) => unblock,
         };
         let mut assumption = Cube::new();
-        let cls = !&unblock.assumption;
+        let mut cls = unblock.assumption.clone();
+        cls.extend_from_slice(&self.ts.constraints);
+        let cls = !cls;
         for input in self.ts.inputs.iter() {
             let lit = input.lit();
             match unblock.sat.lit_value(lit) {
