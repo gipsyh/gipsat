@@ -5,26 +5,26 @@ use transys::Transys;
 
 pub struct Domain {
     pub lemma: VarSet,
-    pub constrain: VarSet,
     pub local: VarSet,
+    pub constrain: u32,
 }
 
 impl Domain {
     pub fn new() -> Self {
         Self {
             lemma: Default::default(),
-            constrain: Default::default(),
             local: Default::default(),
+            constrain: 0,
         }
     }
 
     pub fn reserve(&mut self, var: Var) {
         self.lemma.reserve(var);
-        self.constrain.reserve(var);
         self.local.reserve(var);
     }
 
     pub fn calculate_constrain(&mut self, ts: &Rc<Transys>, value: &Value) {
+        assert!(self.local.len() == 0);
         let mut marked = HashSet::new();
         let mut queue = Vec::new();
         for c in ts.constraints.iter() {
@@ -43,9 +43,10 @@ impl Domain {
         }
         for v in marked.iter() {
             if value.v(v.lit()).is_none() {
-                self.constrain.insert(*v);
+                self.local.insert(*v);
             }
         }
+        self.constrain = self.local.len();
     }
 
     fn get_coi(&mut self, root: impl Iterator<Item = Var>, ts: &Rc<Transys>, value: &Value) {
@@ -72,9 +73,12 @@ impl Domain {
         ts: &Rc<Transys>,
         value: &Value,
     ) {
-        self.local.clear();
+        while self.local.len() > self.constrain {
+            let v = self.local.set.pop().unwrap();
+            self.local.has[v] = false;
+        }
         self.get_coi(domain, ts, value);
-        for l in self.lemma.iter().chain(self.constrain.iter()) {
+        for l in self.lemma.iter() {
             if value.v(l.lit()).is_none() {
                 self.local.insert(*l);
             }
