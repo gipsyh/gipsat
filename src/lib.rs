@@ -77,7 +77,7 @@ impl Solver {
             analyze: Default::default(),
             simplify: Default::default(),
             unsat_core: Default::default(),
-            domain: Default::default(),
+            domain: Domain::new(),
             temporary_domain: Default::default(),
             statistic: Default::default(),
             constrain_act: None,
@@ -88,6 +88,17 @@ impl Solver {
         }
         for cls in ts.trans.iter() {
             solver.add_clause_inner(cls, ClauseKind::Trans);
+        }
+        if id.is_some() {
+            for c in ts.constraints.iter() {
+                solver.add_clause_inner(&[*c], ClauseKind::Trans);
+            }
+        }
+        assert!(solver.highest_level() == 0);
+        assert!(solver.propagate() == CREF_NONE);
+        solver.simplify_satisfied();
+        if id.is_some() {
+            solver.domain.calculate_constrain(&solver.ts, &solver.value);
         }
         solver
     }
@@ -226,17 +237,12 @@ impl Solver {
         if self.temporary_domain {
             assert!(bucket);
         }
-        let mut assumption = Cube::new();
-        if self.id.is_some() {
-            assumption.extend_from_slice(&self.ts.constraints);
-        }
-        assumption.extend_from_slice(assump);
-        self.new_round(Some(assumption.iter().map(|l| l.var())), None, bucket);
+        self.new_round(Some(assump.iter().map(|l| l.var())), None, bucket);
         self.statistic.num_solve += 1;
         self.clean_leanrt();
         self.simplify();
         self.garbage_collect();
-        self.search_with_restart(&assumption)
+        self.search_with_restart(assump)
     }
 
     pub fn solve_with_constrain(
@@ -255,20 +261,11 @@ impl Solver {
         let act = self.constrain_act.unwrap();
         let mut assumption = Cube::new();
         assumption.extend_from_slice(assump);
-        if self.id.is_some() {
-            assumption.extend_from_slice(&self.ts.constraints);
-        }
         assumption.push(act);
         let cc = constrain.clone();
         constrain.push(!act);
         self.new_round(
-            Some(
-                assumption
-                    .iter()
-                    .chain(cc.iter())
-                    .map(|l| l.var())
-                    .filter(|v| *v != act.var()),
-            ),
+            Some(assump.iter().chain(cc.iter()).map(|l| l.var())),
             Some(constrain),
             bucket,
         );
@@ -280,13 +277,11 @@ impl Solver {
     }
 
     pub fn set_domain(&mut self, domain: impl Iterator<Item = Lit>) {
-        let mut domain: Vec<Lit> = domain.collect();
-        domain.extend_from_slice(&self.ts.constraints);
         self.temporary_domain = true;
         self.backtrack(0, false);
         self.clean_temporary();
         self.domain
-            .enable_local(domain.iter().map(|l| l.var()), &self.ts, &self.value);
+            .enable_local(domain.map(|l| l.var()), &self.ts, &self.value);
         assert!(!self.domain.local.has(self.constrain_act.unwrap().var()));
         self.domain.local.insert(self.constrain_act.unwrap().var());
         self.vsids.enable_bucket = true;
