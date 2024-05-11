@@ -41,6 +41,8 @@ impl Domain {
                 }
             }
         }
+        let mut marked = Vec::from_iter(marked.into_iter());
+        marked.sort();
         for v in marked.iter() {
             if value.v(v.lit()).is_none() {
                 self.local.insert(*v);
@@ -55,7 +57,7 @@ impl Domain {
                 self.local.insert(r);
             }
         }
-        let mut now = 0;
+        let mut now = self.constrain;
         while now < self.local.len() {
             let v = self.local[now];
             now += 1;
