@@ -41,7 +41,7 @@ impl Domain {
                 }
             }
         }
-        let mut marked = Vec::from_iter(marked.into_iter());
+        let mut marked = Vec::from_iter(marked);
         marked.sort();
         for v in marked.iter() {
             if value.v(v.lit()).is_none() {

@@ -6,6 +6,7 @@ use std::{
     ffi::{c_int, c_uint},
     mem::forget,
     os::raw::c_void,
+    rc::Rc,
     slice::from_raw_parts,
 };
 use transys::Transys;
@@ -14,7 +15,7 @@ use transys::Transys;
 pub extern "C" fn gipsat_new(ts: *const c_void) -> *mut c_void {
     assert!(!ts.is_null());
     let ts = unsafe { &*(ts as *const Transys) };
-    let gipsat = Box::new(GipSAT::new(ts.clone()));
+    let gipsat = Box::new(GipSAT::new(Rc::new(ts.clone())));
     let ptr = gipsat.as_ref() as *const GipSAT as *mut c_void;
     forget(gipsat);
     ptr

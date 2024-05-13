@@ -421,8 +421,7 @@ pub struct GipSAT {
 
 impl GipSAT {
     /// create a new GipSAT instance from a transition system
-    pub fn new(ts: Transys) -> Self {
-        let ts = Rc::new(ts);
+    pub fn new(ts: Rc<Transys>) -> Self {
         let mut tmp_lit_set = LitSet::new();
         tmp_lit_set.reserve(ts.max_latch);
         let frame = Default::default();
