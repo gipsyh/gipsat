@@ -535,7 +535,7 @@ impl GipSAT {
         self.early = self.early.min(begin);
     }
 
-    pub fn parent_lemma(&self, cube: &Cube, frame: usize) -> Vec<&logic_form::Lemma> {
+    pub fn parent_lemma(&self, cube: &Cube, frame: usize) -> Vec<logic_form::Lemma> {
         let lemma = logic_form::Lemma::new(cube.clone());
         let mut res = Vec::new();
         if frame == 1 {
@@ -543,7 +543,7 @@ impl GipSAT {
         }
         for c in self.frame[frame - 1].iter() {
             if c.subsume(&lemma) {
-                res.push(&c.lemma);
+                res.push(c.lemma.clone());
             }
         }
         res
@@ -606,6 +606,14 @@ impl GipSAT {
             assert!(!self.ts.cube_subsume_init(&ans));
         }
         ans
+    }
+
+    pub fn unblocked_value(&self, lit: Lit) -> Option<bool> {
+        let unblock = match self.last_ind.as_ref().unwrap() {
+            BlockResult::Yes(_) => panic!(),
+            BlockResult::No(unblock) => unblock,
+        };
+        unblock.lit_value(lit)
     }
 
     /// get the predecessor
